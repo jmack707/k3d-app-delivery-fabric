@@ -1,0 +1,8 @@
+lab.env
+lab.secrets
+root_ca.key
+root_ca.crt
+*.key
+*.crt
+*.pem
+.task/

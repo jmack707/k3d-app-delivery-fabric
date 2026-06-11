@@ -1,0 +1,11 @@
+# crAPI uses the upstream OWASP Helm chart, vendored at apps/crapi/chart/.
+# The presence of this file tells render-app.sh to deploy via Helm rather
+# than via raw kubectl apply on a deployment.yaml.
+#
+# Refresh the chart with:  task crapi:chart:update
+#
+# Reasoning for vendoring (vs fetching at deploy time):
+#   - Air-gapped lab runs work without internet
+#   - Reproducible: a given commit always deploys the same chart
+#   - Bad upstream changes can't break the lab silently
+#   - Updates are intentional: pull, diff, test, commit

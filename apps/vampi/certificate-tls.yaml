@@ -1,0 +1,17 @@
+---
+# apps/vampi/certificate-tls.yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vampi-tls
+  namespace: ${NS}
+spec:
+  secretName: vampi-tls
+  issuerRef:
+    name: local-ca
+    kind: ClusterIssuer
+  dnsNames:
+    - ${VAMPI_HOST}
+    - vampi.${LAB_DOMAIN}
+  ipAddresses:
+    - ${LAB_HOST_IP}

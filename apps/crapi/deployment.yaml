@@ -1,0 +1,412 @@
+---
+# apps/crapi/deployment.yaml
+# crAPI full stack: identity (Java/Spring), community (Python), workshop (Node),
+# web (NGINX frontend), MailHog (email), MongoDB, PostgreSQL.
+#
+# Known config quirks:
+#   - MONGO_DB_USER / MONGO_DB_PASSWORD must NOT be set (even to "") when
+#     Mongo has no auth. The driver constructs an invalid URI otherwise.
+#   - IDENTITY_SERVICE must NOT have http:// prefix.
+#   - SERVER_PORT must be set explicitly for Spring Boot.
+#   - crapi-web needs COMMUNITY_SERVICE, IDENTITY_SERVICE, WORKSHOP_SERVICE
+#     env vars for its nginx proxy_pass upstream template.
+
+# ── MongoDB ───────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crapi-mongodb
+  namespace: ${NS}
+  labels:
+    app: crapi-mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crapi-mongodb
+  template:
+    metadata:
+      labels:
+        app: crapi-mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:4.4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 27017
+          resources:
+            requests:
+              memory: "256Mi"
+            limits:
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crapi-mongodb
+  namespace: ${NS}
+spec:
+  selector:
+    app: crapi-mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crapi-postgres
+  namespace: ${NS}
+  labels:
+    app: crapi-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crapi-postgres
+  template:
+    metadata:
+      labels:
+        app: crapi-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:14-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: admin
+            - name: POSTGRES_PASSWORD
+              value: crapisecretpassword
+            - name: POSTGRES_DB
+              value: crapi
+          resources:
+            requests:
+              memory: "128Mi"
+            limits:
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crapi-postgres
+  namespace: ${NS}
+spec:
+  selector:
+    app: crapi-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+# ── MailHog ───────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailhog
+  namespace: ${NS}
+  labels:
+    app: mailhog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailhog
+  template:
+    metadata:
+      labels:
+        app: mailhog
+    spec:
+      containers:
+        - name: mailhog
+          image: mailhog/mailhog:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1025
+            - containerPort: 8025
+          resources:
+            requests:
+              memory: "64Mi"
+            limits:
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailhog
+  namespace: ${NS}
+spec:
+  selector:
+    app: mailhog
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: 1025
+    - name: web
+      port: 8025
+      targetPort: 8025
+---
+# ── crAPI Identity (Spring Boot) ──────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crapi-identity
+  namespace: ${NS}
+  labels:
+    app: crapi-identity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crapi-identity
+  template:
+    metadata:
+      labels:
+        app: crapi-identity
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z crapi-postgres 5432; do sleep 2; done']
+      containers:
+        - name: crapi-identity
+          image: crapi/crapi-identity:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_NAME
+              value: crapi
+            - name: DB_USER
+              value: admin
+            - name: DB_PASSWORD
+              value: crapisecretpassword
+            - name: DB_HOST
+              value: crapi-postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: SERVER_PORT
+              value: "8080"
+            - name: SMTP_HOST
+              value: mailhog
+            - name: SMTP_PORT
+              value: "1025"
+            - name: SMTP_EMAIL
+              value: no-reply@example.com
+            - name: SMTP_PASS
+              value: ""
+            - name: SMTP_AUTH
+              value: "false"
+            - name: SMTP_STARTTLS
+              value: "false"
+            - name: JWT_SECRET
+              value: crapi-secret-lab-key-change-in-prod
+            - name: ENABLE_SHELL_INJECTION
+              value: "false"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crapi-identity
+  namespace: ${NS}
+spec:
+  selector:
+    app: crapi-identity
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+# ── crAPI Community (Python) ──────────────────────────────────────────────────
+# NOTE: MONGO_DB_USER and MONGO_DB_PASSWORD are intentionally omitted.
+# Setting them to "" causes the MongoDB driver to build an invalid URI:
+#   mongodb://:@host:port/db?authSource=admin
+# Omitting them produces the correct no-auth URI:
+#   mongodb://host:port/db
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crapi-community
+  namespace: ${NS}
+  labels:
+    app: crapi-community
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crapi-community
+  template:
+    metadata:
+      labels:
+        app: crapi-community
+    spec:
+      initContainers:
+        - name: wait-for-mongo
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z crapi-mongodb 27017; do sleep 2; done']
+      containers:
+        - name: crapi-community
+          image: crapi/crapi-community:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8087
+          env:
+            - name: MONGO_DB_HOST
+              value: crapi-mongodb
+            - name: MONGO_DB_PORT
+              value: "27017"
+            - name: MONGO_DB_NAME
+              value: crapi
+            - name: IDENTITY_SERVICE
+              value: crapi-identity:8080
+            - name: SERVER_PORT
+              value: "8087"
+            - name: ENABLE_LOG4J
+              value: "false"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crapi-community
+  namespace: ${NS}
+spec:
+  selector:
+    app: crapi-community
+  ports:
+    - port: 8087
+      targetPort: 8087
+---
+# ── crAPI Workshop (Node.js) ──────────────────────────────────────────────────
+# Same MongoDB note as community — no user/password env vars.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crapi-workshop
+  namespace: ${NS}
+  labels:
+    app: crapi-workshop
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crapi-workshop
+  template:
+    metadata:
+      labels:
+        app: crapi-workshop
+    spec:
+      initContainers:
+        - name: wait-for-mongo
+          image: busybox:1.35
+          command: ['sh', '-c', 'until nc -z crapi-mongodb 27017; do sleep 2; done']
+      containers:
+        - name: crapi-workshop
+          image: crapi/crapi-workshop:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8070
+          env:
+            - name: MONGO_DB_HOST
+              value: crapi-mongodb
+            - name: MONGO_DB_PORT
+              value: "27017"
+            - name: MONGO_DB_NAME
+              value: crapi
+            - name: IDENTITY_SERVICE
+              value: crapi-identity:8080
+            - name: SERVER_PORT
+              value: "8070"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crapi-workshop
+  namespace: ${NS}
+spec:
+  selector:
+    app: crapi-workshop
+  ports:
+    - port: 8070
+      targetPort: 8070
+---
+# ── crAPI Web (NGINX frontend) ────────────────────────────────────────────────
+# The crapi-web image runs an nginx template that uses these env vars
+# to build proxy_pass upstreams. Without them, nginx exits immediately
+# with: no host in upstream "" in /etc/nginx/conf.d/default.conf
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crapi-web
+  namespace: ${NS}
+  labels:
+    app: crapi-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crapi-web
+  template:
+    metadata:
+      labels:
+        app: crapi-web
+    spec:
+      containers:
+        - name: crapi-web
+          image: crapi/crapi-web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          env:
+            - name: COMMUNITY_SERVICE
+              value: crapi-community:8087
+            - name: IDENTITY_SERVICE
+              value: crapi-identity:8080
+            - name: WORKSHOP_SERVICE
+              value: crapi-workshop:8070
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crapi-web
+  namespace: ${NS}
+  labels:
+    app: crapi-web
+spec:
+  type: NodePort
+  selector:
+    app: crapi-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: ${HTTP_PORT}

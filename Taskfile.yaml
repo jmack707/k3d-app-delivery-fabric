@@ -1,0 +1,229 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+
+vars:
+  CLUSTER_NAME: cni-net-lab
+
+tasks:
+
+  # ── Top level ──────────────────────────────────────────────────────────────
+
+  default:
+    desc: "List all available tasks"
+    cmds:
+      - task --list
+
+  install:
+    desc: "Install all prerequisites on Ubuntu 22.04/24.04 (requires sudo)"
+    cmds:
+      - sudo bash scripts/install-prereqs.sh
+
+  check:
+    desc: "Verify all prerequisite tools and lab.env / lab.secrets exist"
+    cmds:
+      - bash scripts/check-prereqs.sh
+
+  up:
+    desc: "Full lab up: cluster → CNI → apps  (start registry first with: task registry:setup)"
+    cmds:
+      - task: ca:init
+      - task: cluster
+      - task: cni:install
+      - task: pre-deploy
+      - task: apps:up
+      - task: health
+
+  down:
+    desc: "Destroy the k3d cluster (registry and CA are preserved)"
+    cmds:
+      - k3d cluster delete {{.CLUSTER_NAME}}
+      - echo "Cluster destroyed. Registry still running. Run 'task up' to rebuild."
+
+  reset:
+    desc: "Full teardown and rebuild (preserves registry data and CA)"
+    cmds:
+      - task: down
+      - task: up
+
+  health:
+    desc: "Post-deploy verification: nodes, CNI, apps, ports"
+    cmds:
+      - bash scripts/health-check.sh
+
+  test:
+    desc: "Curl smoke tests against all app NodePort endpoints"
+    cmds:
+      - bash scripts/test-endpoints.sh
+
+  # ── Cluster ────────────────────────────────────────────────────────────────
+
+  cluster:
+    desc: "Create the k3d cluster (no LB, no Klipper, no default CNI)"
+    cmds:
+      - bash scripts/create-cluster.sh
+
+  cluster:only:
+    desc: "Cluster + CNI only — no apps, no cert-manager  (start registry first with: task registry:setup)"
+    cmds:
+      - task: ca:init
+      - task: cluster
+      - task: cni:install
+      - CLUSTER_ONLY=1 bash scripts/health-check.sh
+
+  cluster:reset:
+    desc: "Destroy and rebuild cluster + CNI only (no apps)"
+    cmds:
+      - task: down
+      - task: cluster:only
+
+  # ── CNI ────────────────────────────────────────────────────────────────────
+
+  cni:install:
+    desc: "Install CNI from lab.env (CNI=calico|cilium)"
+    cmds:
+      - bash scripts/install-cni.sh
+
+  cni:status:
+    desc: "Show CNI pod status and node readiness"
+    cmds:
+      - bash scripts/cni-status.sh
+
+  cni:hubble:
+    desc: "Port-forward Hubble UI to localhost:12000 (Cilium only)"
+    cmds:
+      - echo "Hubble UI → http://localhost:12000  (Ctrl+C to stop)"
+      - kubectl port-forward svc/hubble-ui 12000:80 -n kube-system
+
+  # ── CA & TLS ───────────────────────────────────────────────────────────────
+
+  ca:init:
+    desc: "Create local root CA (skips if already exists)"
+    cmds:
+      - bash scripts/ca-init.sh
+
+  # ── Pre-deploy ─────────────────────────────────────────────────────────────
+
+  pre-deploy:
+    desc: "Create namespaces, import CA, install cert-manager if HTTPS_APPS is set"
+    cmds:
+      - bash scripts/pre-deploy.sh
+
+  # ── Apps ───────────────────────────────────────────────────────────────────
+
+  apps:up:
+    desc: "Deploy all apps in LAB_APPS. Single app: APP=crapi task apps:up"
+    cmds:
+      - bash scripts/app-up.sh
+
+  apps:down:
+    desc: "Stop all apps in LAB_APPS. Single app: APP=crapi task apps:down"
+    cmds:
+      - bash scripts/app-down.sh
+
+  apps:status:
+    desc: "Show pod and service status for all deployed apps"
+    cmds:
+      - bash scripts/apps-status.sh
+
+  apps:restart:
+    desc: "Restart all apps (down then up). Single app: APP=juiceshop task apps:restart"
+    cmds:
+      - bash scripts/app-down.sh
+      - bash scripts/app-up.sh
+
+  # Individual app shortcuts
+
+  crapi:up:
+    desc: "Start crAPI"
+    cmds:
+      - APP=crapi bash scripts/app-up.sh
+
+  crapi:down:
+    desc: "Stop crAPI"
+    cmds:
+      - APP=crapi bash scripts/app-down.sh
+
+  crapi:mail:
+    desc: "Port-forward MailHog web UI to localhost:8025"
+    cmds:
+      - echo "MailHog UI → http://localhost:8025  (Ctrl+C to stop)"
+      - kubectl port-forward svc/mailhog 8025:8025 -n crapi
+
+  crapi:logs:
+    desc: "Tail crAPI identity service logs"
+    cmds:
+      - kubectl logs -n crapi deploy/crapi-identity -f
+
+  crapi:chart:update:
+    desc: "Fetch the latest OWASP crAPI Helm chart from upstream (defaults to main)"
+    cmds:
+      - bash scripts/crapi-chart-update.sh
+
+  juiceshop:up:
+    desc: "Start Juice Shop"
+    cmds:
+      - APP=juiceshop bash scripts/app-up.sh
+
+  juiceshop:down:
+    desc: "Stop Juice Shop"
+    cmds:
+      - APP=juiceshop bash scripts/app-down.sh
+
+  dvga:up:
+    desc: "Start DVGA"
+    cmds:
+      - APP=dvga bash scripts/app-up.sh
+
+  dvga:down:
+    desc: "Stop DVGA"
+    cmds:
+      - APP=dvga bash scripts/app-down.sh
+
+  vampi:up:
+    desc: "Start VAmPI"
+    cmds:
+      - APP=vampi bash scripts/app-up.sh
+
+  vampi:down:
+    desc: "Stop VAmPI"
+    cmds:
+      - APP=vampi bash scripts/app-down.sh
+
+  # ── Registry ───────────────────────────────────────────────────────────────
+  # The registry is independent of the cluster lifecycle.
+  # Run 'task registry:setup' once. It survives task down/up/reset.
+
+  registry:setup:
+    desc: "Start the registry container (run once — survives cluster rebuilds)"
+    cmds:
+      - bash scripts/registry-setup.sh
+
+  registry:ls:
+    desc: "List all images and tags in the registry"
+    cmds:
+      - bash scripts/registry-ls.sh
+
+  registry:flush:
+    desc: "Delete ALL images from the registry (prompts for confirmation)"
+    cmds:
+      - bash scripts/registry-flush.sh
+
+  registry:cache:
+    desc: "Pull all lab images from the internet and push to local registry"
+    cmds:
+      - bash scripts/registry-cache.sh
+
+  registry:stop:
+    desc: "Stop (but don't delete) the registry container"
+    cmds:
+      - bash scripts/registry-stop.sh
+
+  registry:rm:
+    desc: "Remove the registry container AND its data volume (irreversible)"
+    cmds:
+      - bash scripts/registry-rm.sh
+
+  registry:status:
+    desc: "Show registry container state and image count"
+    cmds:
+      - bash scripts/registry-status.sh

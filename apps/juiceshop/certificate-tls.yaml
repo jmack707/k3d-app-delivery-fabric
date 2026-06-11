@@ -1,0 +1,18 @@
+---
+# apps/juiceshop/certificate-tls.yaml
+# Applied only when juiceshop is in HTTPS_APPS.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: juice-shop-tls
+  namespace: ${NS}
+spec:
+  secretName: juice-shop-tls
+  issuerRef:
+    name: local-ca
+    kind: ClusterIssuer
+  dnsNames:
+    - ${JUICESHOP_HOST}
+    - juiceshop.${LAB_DOMAIN}
+  ipAddresses:
+    - ${LAB_HOST_IP}

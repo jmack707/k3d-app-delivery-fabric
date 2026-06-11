@@ -1,0 +1,44 @@
+# apps/crapi/values.yaml
+#
+# Lab-specific value overrides for the OWASP crAPI Helm chart.
+# Renders as: helm upgrade --install crapi apps/crapi/chart -n crapi -f apps/crapi/values.yaml
+#
+# The upstream chart defaults to type: LoadBalancer, which doesn't work in
+# this lab because we disabled k3s ServiceLB. We force NodePort and pin the
+# external port to the one in lab.env (CRAPI_HTTP_PORT).
+#
+# The chart's TLS handling is bypassed in favor of cert-manager + our local
+# CA, applied separately via apps/crapi/certificate-tls.yaml.
+
+# Override only what we need; everything else uses chart defaults.
+crapiWeb:
+  service:
+    type: NodePort
+    # nodePort is patched at deploy time by render-app.sh using ${HTTP_PORT}
+    # from lab.env. See scripts/render-app.sh for the substitution.
+    nodePort: __HTTP_PORT__
+
+  # Bind to all interfaces inside the pod
+  env:
+    LISTEN_IP: "0.0.0.0"
+
+# Mailhog stays internal (port-forward via 'task crapi:mail')
+mailhog:
+  service:
+    type: ClusterIP
+
+# Keep all other services as ClusterIP; only crapi-web is exposed
+crapiIdentity:
+  service:
+    type: ClusterIP
+crapiCommunity:
+  service:
+    type: ClusterIP
+crapiWorkshop:
+  service:
+    type: ClusterIP
+
+# TLS is handled by cert-manager + our ClusterIssuer 'local-ca', not by
+# the chart's built-in TLS. Disable chart-level TLS so it doesn't fight us.
+tls:
+  enabled: false
