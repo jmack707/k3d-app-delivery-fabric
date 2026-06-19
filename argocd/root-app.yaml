@@ -1,0 +1,38 @@
+# argocd/root-app.yaml
+#
+# The single "app of apps" entrypoint. scripts/argocd-bootstrap.sh renders the
+# ${...} placeholders from your git remote and lab.env, then kubectl-applies it.
+# Argo CD then syncs argocd/lab-apps, which creates the AppProject and one
+# Application per workload.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cni-net-lab-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: ${ARGOCD_REPO_URL}
+    targetRevision: ${ARGOCD_TARGET_REVISION}
+    path: argocd/lab-apps
+    helm:
+      parameters:
+        - name: global.repoURL
+          value: ${ARGOCD_REPO_URL}
+        - name: global.targetRevision
+          value: ${ARGOCD_TARGET_REVISION}
+        - name: global.labHostIp
+          value: ${LAB_HOST_IP}
+        - name: global.labDomain
+          value: ${LAB_DOMAIN}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

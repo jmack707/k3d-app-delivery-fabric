@@ -1,0 +1,17 @@
+{{- if .Values.tls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.name }}-tls
+spec:
+  secretName: {{ .Values.name }}-tls
+  issuerRef:
+    name: {{ .Values.certIssuer.name }}
+    kind: {{ .Values.certIssuer.kind }}
+  dnsNames:
+    - {{ .Values.host | default (printf "%s.%s" .Values.name .Values.labDomain) | quote }}
+  {{- if .Values.labHostIp }}
+  ipAddresses:
+    - {{ .Values.labHostIp | quote }}
+  {{- end }}
+{{- end }}

@@ -1,6 +1,6 @@
 # crAPI uses the upstream OWASP Helm chart, vendored at apps/crapi/chart/.
-# The presence of this file tells render-app.sh to deploy via Helm rather
-# than via raw kubectl apply on a deployment.yaml.
+# It is deployed by the Argo CD "crapi" Application (see argocd/lab-apps),
+# which renders this chart with apps/crapi/values.yaml as a $values overlay.
 #
 # Refresh the chart with:  task crapi:chart:update
 #

@@ -6,20 +6,25 @@ A standalone Kubernetes CNI/network testing lab built on k3d. No ingress control
 
 - A k3d cluster with **no Klipper LB**, **no Traefik**, no default CNI
 - Your choice of **Calico** or **Cilium** installed post-cluster
+- **Argo CD** managing every app via GitOps — an app-of-apps that reconciles each workload from this git repo
 - Up to four intentionally vulnerable demo apps reachable via **NodePort** on `LAB_HOST_IP`
-- Per-app **HTTP or HTTPS** — listed in `HTTPS_APPS`, rest get plain HTTP
+- Per-app **HTTP or HTTPS** and **NodePort or ClusterIP** — declared in `argocd/lab-apps/values.yaml`
 - A **Docker registry v2** container running independently on the host — not coupled to the cluster lifecycle
-- Individual `task <app>:up` / `task <app>:down` for each app
 
 ## Component lifecycle
 
-The three components are intentionally independent:
+The three host-side components are intentionally independent of the cluster:
 
 ```
 Registry ──── long-lived host container, started once, never torn down with the cluster
 CA       ──── files on disk (root_ca.crt / root_ca.key), created once
 Cluster  ──── ephemeral, task up / task down / task reset as needed
 ```
+
+Inside the cluster, **Argo CD owns the apps**. You don't `kubectl apply` or `helm
+install` workloads directly — you edit manifests in git and Argo CD reconciles
+them. `task up` bootstraps the cluster, CNI, cert-manager, and Argo CD, then
+hands app deployment over to Argo.
 
 `task down` and `task reset` never touch the registry or CA.
 
@@ -90,15 +95,18 @@ task cluster:only
 | Juice Shop | `http://LAB_HOST_IP:30081` | `https://LAB_HOST_IP:30444` |
 | DVGA | `http://LAB_HOST_IP:30082` | `https://LAB_HOST_IP:30445` |
 | VAmPI | `http://LAB_HOST_IP:30083` | `https://LAB_HOST_IP:30446` |
+| **Argo CD UI** | `http://LAB_HOST_IP:30090` | — (insecure/HTTP, lab only) |
 
 All ports are configurable in `lab.env`. Changing them requires `task reset`.
+
+Argo CD login: user `admin`, password from `task argocd:password`.
 
 ## Common tasks
 
 ```bash
 # Lab lifecycle
-task up                    # cluster + CNI + apps
-task cluster:only          # cluster + CNI only (no apps)
+task up                    # cluster + CNI + cert-manager + Argo CD + GitOps apps
+task cluster:only          # cluster + CNI only (no Argo CD, no apps)
 task down                  # destroy cluster (registry and CA untouched)
 task reset                 # destroy + rebuild cluster
 task cluster:reset         # destroy + rebuild cluster only (no apps)
@@ -107,12 +115,14 @@ task cluster:reset         # destroy + rebuild cluster only (no apps)
 task health                # verify cluster, CNI, and app pods
 task test                  # curl smoke tests against all NodePorts
 
-# Individual apps
-task crapi:up              # start crAPI only
-task crapi:down            # stop crAPI only
-task apps:up               # start all LAB_APPS
-task apps:down             # stop all LAB_APPS
-APP=dvga task apps:up      # start a single app by name
+# Argo CD / GitOps
+task argocd:install        # install Argo CD via Helm (run by 'task up')
+task argocd:bootstrap      # register the root app-of-apps (run by 'task up')
+task argocd:apps           # list Applications with sync/health status
+task argocd:wait           # block until all Applications are Synced + Healthy
+task argocd:sync           # force a hard refresh/sync of all Applications
+task argocd:password       # print the initial admin password
+task argocd:ui             # print the Argo CD UI URL
 
 # CNI
 task cni:status            # show CNI pod status
@@ -139,50 +149,73 @@ Then:
 task reset   # required — CNI is installed at cluster creation time
 ```
 
-## Switching HTTP ↔ HTTPS per app
+## GitOps with Argo CD
 
-Edit `lab.env`:
-```bash
-HTTPS_APPS="crapi"          # only crAPI gets TLS
-# HTTPS_APPS=""             # all HTTP, skip cert-manager entirely
+Apps are managed declaratively. Argo CD watches this repo and reconciles the
+cluster to match it — there is no `task apps:up`/`apps:down` any more.
+
+### Layout
+
 ```
-Then restart just the affected app:
-```bash
-APP=crapi task apps:down
-APP=crapi task apps:up
-```
-Or for a full cert-manager re-sync: `task reset`.
-
-## Switching NodePort ↔ ClusterIP per app
-
-By default every app is exposed as a **NodePort** service, reachable at
-`LAB_HOST_IP:<port>`. To put an app behind an in-cluster ingress instead
-(BIG-IP CIS, NGINX Ingress), switch it to **ClusterIP** so it's only
-reachable inside the cluster:
-
-```bash
-# In lab.env — apps listed here become ClusterIP, the rest stay NodePort
-CLUSTERIP_APPS="dvga vampi"
-# CLUSTERIP_APPS=""           # default: everything NodePort
+argocd/
+  root-app.yaml                 # the "app of apps" entrypoint (bootstrapped once)
+  lab-apps/                     # Helm chart that renders one Argo Application per app
+    values.yaml                 # ← which apps deploy, and how they're exposed
+    templates/
+      appproject.yaml           # the cni-net-lab AppProject
+      applications.yaml         # one Application per enabled app
+apps/
+  crapi/chart  + values.yaml    # vendored upstream OWASP chart + lab overrides
+  juiceshop/chart               # per-app Helm chart (deployment, service, TLS sidecar, cert)
+  dvga/chart
+  vampi/chart
 ```
 
-Then restart the affected apps:
-```bash
-APP=dvga task apps:down && APP=dvga task apps:up
+### How it flows
+
+1. `task argocd:install` installs Argo CD (UI on `LAB_HOST_IP:30090`).
+2. `task argocd:bootstrap` renders `argocd/root-app.yaml` — filling in the repo
+   URL (your `origin` remote), the target revision (your current branch), and
+   `LAB_HOST_IP`/`LAB_DOMAIN` — and applies it.
+3. The root app syncs `argocd/lab-apps`, which creates the `cni-net-lab`
+   AppProject and one `Application` per app.
+4. Each app Application syncs its Helm chart into the app's namespace
+   (`CreateNamespace=true`, `prune`, `selfHeal` all on).
+
+`task up` runs steps 1–2 for you, then `task argocd:wait` blocks until every
+Application reports **Synced / Healthy** before the final `task health`.
+
+### Changing what's deployed
+
+Edit `argocd/lab-apps/values.yaml`, commit, and push. Argo CD picks the change
+up automatically (or run `task argocd:sync` to force an immediate refresh):
+
+```yaml
+apps:
+  juiceshop:
+    enabled: true        # set false to remove the app entirely
+    tls: true            # HTTP-only when false (drops the nginx TLS sidecar + cert)
+    serviceType: NodePort  # or ClusterIP to hide it from the host (e.g. behind an ingress)
 ```
 
-ClusterIP apps are **not** reachable on `LAB_HOST_IP`. To reach one for
-testing, port-forward it:
+> Keep `HTTPS_APPS` / `CLUSTERIP_APPS` in `lab.env` in sync with this file —
+> `task health` and `task test` read those lists to decide what to probe.
+
+ClusterIP apps are **not** reachable on `LAB_HOST_IP`; port-forward to reach one:
+
 ```bash
-kubectl port-forward -n dvga svc/dvga 8082:5013
-# then browse http://localhost:8082
+kubectl port-forward -n dvga svc/dvga 8082:5013   # then browse http://localhost:8082
 ```
 
-`task test`, `task health`, and `task apps:status` all detect ClusterIP
-apps and skip the host-reachability checks for them automatically.
+### Pointing Argo CD at a fork or fixed branch
 
-This works for crAPI too (its Helm chart's front-end service is switched
-via `--set crapiWeb.service.type=ClusterIP` under the hood).
+By default the bootstrap tracks your `origin` remote and current branch. To pin
+it, set these in `lab.env` and re-run `task argocd:bootstrap`:
+
+```bash
+ARGOCD_REPO_URL=https://github.com/<you>/cni-net-lab.git
+ARGOCD_TARGET_REVISION=main
+```
 
 ## Registry
 

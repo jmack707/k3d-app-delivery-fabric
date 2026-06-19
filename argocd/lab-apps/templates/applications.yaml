@@ -1,0 +1,67 @@
+{{- $g := .Values.global -}}
+{{- range $name, $app := .Values.apps }}
+{{- if $app.enabled }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Values.argocdNamespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $.Values.project }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ $app.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  {{- if eq $app.kind "crapi" }}
+  # crAPI uses the vendored upstream chart plus the lab override values file,
+  # pulled from the repo root via a $values ref source.
+  sources:
+    - repoURL: {{ $g.repoURL | quote }}
+      targetRevision: {{ $g.targetRevision | quote }}
+      ref: values
+    - repoURL: {{ $g.repoURL | quote }}
+      targetRevision: {{ $g.targetRevision | quote }}
+      path: {{ $app.path }}
+      helm:
+        valueFiles:
+          - $values/{{ $app.valuesPath }}
+        parameters:
+          - name: web.service.nodePort
+            value: {{ $app.httpNodePort | quote }}
+          - name: web.service.sslNodePort
+            value: {{ $app.httpsNodePort | quote }}
+  {{- else }}
+  source:
+    repoURL: {{ $g.repoURL | quote }}
+    targetRevision: {{ $g.targetRevision | quote }}
+    path: {{ $app.path }}
+    helm:
+      parameters:
+        - name: service.type
+          value: {{ $app.serviceType | quote }}
+        {{- if eq $app.serviceType "NodePort" }}
+        - name: service.httpNodePort
+          value: {{ $app.httpNodePort | quote }}
+        - name: service.httpsNodePort
+          value: {{ $app.httpsNodePort | quote }}
+        {{- end }}
+        - name: tls.enabled
+          value: {{ $app.tls | quote }}
+        - name: labHostIp
+          value: {{ $g.labHostIp | quote }}
+        - name: labDomain
+          value: {{ $g.labDomain | quote }}
+        - name: host
+          value: {{ printf "%s.%s" $name $g.labDomain | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    app: {{ .Values.name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+    spec:
+      containers:
+        - name: {{ .Values.name }}
+          image: {{ .Values.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+              name: http
+          {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.tls.enabled }}
+        # TLS-terminating nginx sidecar: listens on 8443, proxies cleartext to
+        # the app on 127.0.0.1:{{ .Values.containerPort }}.
+        - name: tls-sidecar
+          image: {{ .Values.tlsSidecar.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8443
+              name: https
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: tls-cert
+              mountPath: /etc/nginx/tls
+              readOnly: true
+          {{- with .Values.tlsSidecar.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      {{- if .Values.tls.enabled }}
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: {{ .Values.name }}-tls-nginx
+        - name: tls-cert
+          secret:
+            secretName: {{ .Values.name }}-tls
+      {{- end }}

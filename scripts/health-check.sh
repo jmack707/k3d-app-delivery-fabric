@@ -49,7 +49,7 @@ if [ "${CLUSTER_ONLY}" = "1" ]; then
   echo ""
   info "Cluster-only mode — skipping app and TLS checks"
   echo ""
-  echo "  Deploy apps later with:  task apps:up"
+  echo "  Deploy apps later with:  task argocd:install && task argocd:bootstrap"
   echo "  Full lab with apps:      task up"
 else
   echo ""

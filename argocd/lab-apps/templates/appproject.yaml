@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: {{ .Values.project }}
+  namespace: {{ .Values.argocdNamespace }}
+  # Create the project before the Applications that reference it.
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: cni-net-lab vulnerable demo workloads
+  sourceRepos:
+    - {{ .Values.global.repoURL | quote }}
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: '*'
+  # Lab project — allow any resource type so cert-manager Certificates,
+  # RBAC, etc. from the app charts apply cleanly.
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

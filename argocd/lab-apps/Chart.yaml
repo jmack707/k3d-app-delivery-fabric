@@ -1,0 +1,7 @@
+apiVersion: v2
+name: cni-net-lab-apps
+description: >-
+  App-of-apps chart that registers each cni-net-lab workload as an Argo CD
+  Application. Synced by the cni-net-lab-root Application.
+type: application
+version: 0.1.0

@@ -62,6 +62,11 @@ if [ "${#MISSING_PORTS[@]}" -gt 0 ]; then
   exit 1
 fi
 
+# ── Argo CD UI NodePort (GitOps control plane) ────────────────────────────────
+# Always bound — Argo CD manages every app, so its UI is part of the lab.
+ARGOCD_HTTP_PORT="${ARGOCD_HTTP_PORT:-30090}"
+NODEPORT_ARGS+=(--port "${LAB_HOST_IP}:${ARGOCD_HTTP_PORT}:${ARGOCD_HTTP_PORT}@loadbalancer")
+
 # ── Registry check (advisory only) ───────────────────────────────────────────
 # Registry is independent — cluster creation does not require it.
 if ! curl -sf "http://127.0.0.1:${REGISTRY_PORT}/v2/" &>/dev/null; then

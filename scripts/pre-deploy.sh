@@ -1,33 +1,26 @@
 #!/usr/bin/env bash
 # scripts/pre-deploy.sh
-# Create namespaces, import CA into cert-manager, and apply ClusterIssuer.
-# Only creates namespaces for apps in LAB_APPS (plus cert-manager if needed).
+# Cluster-bootstrap prerequisites that Argo CD does NOT manage: cert-manager,
+# the local CA secret, and the ClusterIssuer. App namespaces are created by
+# Argo CD itself (CreateNamespace=true), so they are not handled here.
 # Idempotent — safe to run multiple times.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-LAB_APPS="${LAB_APPS:-crapi juiceshop dvga vampi}"
 HTTPS_APPS="${HTTPS_APPS:-}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Pre-deploy"
+echo "  Pre-deploy (cert-manager bootstrap)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 require_cluster
 
-# ── Namespaces ────────────────────────────────────────────────────────────────
-# Only create namespaces for apps that are actually being deployed.
-info "Creating namespaces for LAB_APPS: ${LAB_APPS}"
-for app in ${LAB_APPS}; do
-  ns=$(app_namespace "${app}")
-  kubectl create namespace "${ns}" --dry-run=client -o yaml | kubectl apply -f -
-  ok "  ns/${ns}"
-done
-
 # ── cert-manager ──────────────────────────────────────────────────────────────
-# Only install if at least one app needs HTTPS.
+# Only install if at least one app needs HTTPS (HTTPS_APPS in lab.env). The
+# nginx TLS sidecar in each app chart consumes the cert-manager-issued secret;
+# the local-ca ClusterIssuer below signs them.
 if [ -n "${HTTPS_APPS}" ]; then
   info "Installing cert-manager (HTTPS_APPS: ${HTTPS_APPS})..."
 

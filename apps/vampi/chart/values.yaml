@@ -1,0 +1,46 @@
+# apps/vampi/chart/values.yaml
+#
+# Defaults let `helm template apps/vampi/chart` render standalone.
+# At deploy time, Argo CD overrides service.type / nodePorts / tls.enabled /
+# labHostIp / labDomain / host from argocd/lab-apps (see that chart's values).
+name: vampi
+image: erev0s/vampi:latest
+imagePullPolicy: IfNotPresent
+containerPort: 5000
+replicas: 1
+
+service:
+  type: ClusterIP
+  httpNodePort: 30083
+  httpsNodePort: 30446
+
+tls:
+  enabled: false
+
+certIssuer:
+  name: local-ca
+  kind: ClusterIssuer
+
+labHostIp: ""
+labDomain: lab.local
+host: ""
+
+env: []
+
+resources:
+  requests:
+    memory: "64Mi"
+    cpu: "50m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"
+
+tlsSidecar:
+  image: nginx:1.27-alpine
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "20m"
+    limits:
+      memory: "64Mi"
+      cpu: "100m"

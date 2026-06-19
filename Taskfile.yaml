@@ -24,13 +24,15 @@ tasks:
       - bash scripts/check-prereqs.sh
 
   up:
-    desc: "Full lab up: cluster → CNI → apps  (start registry first with: task registry:setup)"
+    desc: "Full lab up: cluster → CNI → cert-manager → Argo CD → GitOps apps  (start registry first with: task registry:setup)"
     cmds:
       - task: ca:init
       - task: cluster
       - task: cni:install
       - task: pre-deploy
-      - task: apps:up
+      - task: argocd:install
+      - task: argocd:bootstrap
+      - task: argocd:wait
       - task: health
 
   down:
@@ -108,40 +110,49 @@ tasks:
     cmds:
       - bash scripts/pre-deploy.sh
 
-  # ── Apps ───────────────────────────────────────────────────────────────────
+  # ── Argo CD (GitOps) ─────────────────────────────────────────────────────────
+  # Apps are no longer deployed by scripts — Argo CD reconciles them from git.
+  # Edit which apps deploy and how they're exposed in argocd/lab-apps/values.yaml
+  # (keep lab.env HTTPS_APPS / CLUSTERIP_APPS in sync for the health/test checks).
 
-  apps:up:
-    desc: "Deploy all apps in LAB_APPS. Single app: APP=crapi task apps:up"
+  argocd:install:
+    desc: "Install Argo CD via Helm (NodePort UI on ARGOCD_HTTP_PORT)"
     cmds:
-      - bash scripts/app-up.sh
+      - bash scripts/install-argocd.sh
 
-  apps:down:
-    desc: "Stop all apps in LAB_APPS. Single app: APP=crapi task apps:down"
+  argocd:bootstrap:
+    desc: "Register the root app-of-apps so Argo CD reconciles every workload"
     cmds:
-      - bash scripts/app-down.sh
+      - bash scripts/argocd-bootstrap.sh
 
-  apps:status:
-    desc: "Show pod and service status for all deployed apps"
+  argocd:wait:
+    desc: "Block until all Argo CD Applications are Synced and Healthy"
     cmds:
-      - bash scripts/apps-status.sh
+      - bash scripts/argocd-wait.sh
 
-  apps:restart:
-    desc: "Restart all apps (down then up). Single app: APP=juiceshop task apps:restart"
+  argocd:apps:
+    desc: "List Argo CD Applications with sync and health status"
     cmds:
-      - bash scripts/app-down.sh
-      - bash scripts/app-up.sh
+      - kubectl get applications -n argocd
 
-  # Individual app shortcuts
-
-  crapi:up:
-    desc: "Start crAPI"
+  argocd:sync:
+    desc: "Force a hard refresh/sync of all Argo CD Applications"
     cmds:
-      - APP=crapi bash scripts/app-up.sh
+      - kubectl annotate applications --all -n argocd argocd.argoproj.io/refresh=hard --overwrite
 
-  crapi:down:
-    desc: "Stop crAPI"
+  argocd:password:
+    desc: "Print the initial Argo CD admin password"
     cmds:
-      - APP=crapi bash scripts/app-down.sh
+      - kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+      - echo ""
+
+  argocd:ui:
+    desc: "Print the Argo CD UI URL (admin / 'task argocd:password')"
+    cmds:
+      - bash scripts/argocd-url.sh
+
+  # ── crAPI helpers ────────────────────────────────────────────────────────────
+  # crAPI is Argo-managed; these are convenience shortcuts into the running app.
 
   crapi:mail:
     desc: "Port-forward MailHog web UI to localhost:8025"
@@ -158,36 +169,6 @@ tasks:
     desc: "Fetch the latest OWASP crAPI Helm chart from upstream (defaults to main)"
     cmds:
       - bash scripts/crapi-chart-update.sh
-
-  juiceshop:up:
-    desc: "Start Juice Shop"
-    cmds:
-      - APP=juiceshop bash scripts/app-up.sh
-
-  juiceshop:down:
-    desc: "Stop Juice Shop"
-    cmds:
-      - APP=juiceshop bash scripts/app-down.sh
-
-  dvga:up:
-    desc: "Start DVGA"
-    cmds:
-      - APP=dvga bash scripts/app-up.sh
-
-  dvga:down:
-    desc: "Stop DVGA"
-    cmds:
-      - APP=dvga bash scripts/app-down.sh
-
-  vampi:up:
-    desc: "Start VAmPI"
-    cmds:
-      - APP=vampi bash scripts/app-up.sh
-
-  vampi:down:
-    desc: "Stop VAmPI"
-    cmds:
-      - APP=vampi bash scripts/app-down.sh
 
   # ── Registry ───────────────────────────────────────────────────────────────
   # The registry is independent of the cluster lifecycle.

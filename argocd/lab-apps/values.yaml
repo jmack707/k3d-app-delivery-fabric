@@ -1,0 +1,60 @@
+# argocd/lab-apps/values.yaml
+#
+# Source of truth for which workloads Argo CD manages and how they're exposed.
+#
+# global.* (repoURL, targetRevision, labHostIp, labDomain) are injected by
+# scripts/argocd-bootstrap.sh from your git remote and lab.env — the defaults
+# below only matter when rendering this chart standalone with `helm template`.
+#
+# Per-app tls / serviceType / nodePorts ARE the GitOps source of truth. Keep
+# them in sync with HTTPS_APPS / CLUSTERIP_APPS / *_PORT in lab.env so the
+# verification scripts (task health / task test) report correctly.
+global:
+  repoURL: https://github.com/jmack707/cni-net-lab.git
+  targetRevision: main
+  labHostIp: ""
+  labDomain: lab.local
+
+# Argo CD install namespace and the AppProject these Applications belong to.
+argocdNamespace: argocd
+project: cni-net-lab
+
+apps:
+  crapi:
+    enabled: true
+    kind: crapi                 # multi-source: vendored upstream chart + $values
+    namespace: crapi
+    path: apps/crapi/chart
+    valuesPath: apps/crapi/values.yaml
+    httpNodePort: 30080
+    httpsNodePort: 30443
+
+  juiceshop:
+    enabled: true
+    kind: raw                   # per-app Helm chart in apps/<app>/chart
+    namespace: juice-shop
+    path: apps/juiceshop/chart
+    tls: true
+    serviceType: NodePort
+    httpNodePort: 30081
+    httpsNodePort: 30444
+
+  dvga:
+    enabled: true
+    kind: raw
+    namespace: dvga
+    path: apps/dvga/chart
+    tls: false
+    serviceType: ClusterIP
+    httpNodePort: 30082
+    httpsNodePort: 30445
+
+  vampi:
+    enabled: true
+    kind: raw
+    namespace: vampi
+    path: apps/vampi/chart
+    tls: false
+    serviceType: ClusterIP
+    httpNodePort: 30083
+    httpsNodePort: 30446
