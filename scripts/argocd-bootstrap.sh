@@ -44,6 +44,39 @@ if ! kubectl get ns "${ARGOCD_NAMESPACE}" &>/dev/null \
   exit 1
 fi
 
+# ── Repository credentials (private repos) ────────────────────────────────────
+# Argo CD's repo-server clones the repo anonymously by default, which fails for
+# a PRIVATE repo (the Application stays Sync=Unknown and never creates children).
+# If ARGOCD_REPO_PASSWORD is set in lab.secrets, register a repository Secret so
+# Argo can authenticate. For GitHub, use a Personal Access Token with read
+# access to the repo as the password (the username is ignored for PAT auth).
+ARGOCD_REPO_USERNAME="${ARGOCD_REPO_USERNAME:-git}"
+ARGOCD_REPO_PASSWORD="${ARGOCD_REPO_PASSWORD:-}"
+
+if [ -n "${ARGOCD_REPO_PASSWORD}" ]; then
+  info "Registering repository credential for ${ARGOCD_REPO_URL}..."
+  kubectl apply -n "${ARGOCD_NAMESPACE}" -f - <<SECRET
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-cni-net-lab
+  namespace: ${ARGOCD_NAMESPACE}
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: ${ARGOCD_REPO_URL}
+  username: ${ARGOCD_REPO_USERNAME}
+  password: ${ARGOCD_REPO_PASSWORD}
+SECRET
+  ok "Repository credential registered"
+elif [[ "${ARGOCD_REPO_URL}" == https://* ]]; then
+  warn "No ARGOCD_REPO_PASSWORD set — Argo CD will clone anonymously."
+  warn "If ${ARGOCD_REPO_URL} is PRIVATE, the root app will stay Sync=Unknown."
+  warn "Set ARGOCD_REPO_USERNAME / ARGOCD_REPO_PASSWORD (a GitHub PAT with read"
+  warn "access) in lab.secrets, then re-run 'task argocd:bootstrap'."
+fi
+
 export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION LAB_HOST_IP LAB_DOMAIN
 envsubst '${ARGOCD_REPO_URL} ${ARGOCD_TARGET_REVISION} ${LAB_HOST_IP} ${LAB_DOMAIN}' \
   < "${REPO_DIR}/argocd/root-app.yaml" \

@@ -219,6 +219,23 @@ ClusterIP apps are **not** reachable on `LAB_HOST_IP`; port-forward to reach one
 kubectl port-forward -n dvga svc/dvga 8082:5013   # then browse http://localhost:8082
 ```
 
+### Private repositories
+
+Argo CD clones this repo to read the manifests. If the repo is **private**,
+anonymous cloning fails and the root Application stays stuck at
+**Sync = Unknown** with no child apps ever appearing. Give Argo CD a read
+credential in `lab.secrets` (a GitHub Personal Access Token with read access):
+
+```bash
+# lab.secrets
+ARGOCD_REPO_USERNAME=git          # ignored for PAT auth; any value works
+ARGOCD_REPO_PASSWORD=ghp_your_token
+```
+
+Then re-run `task argocd:bootstrap` — it registers an Argo CD repository Secret
+before applying the root app. (Making the repo public also works and needs no
+credential.)
+
 ### Pointing Argo CD at a fork or fixed branch
 
 By default the bootstrap tracks your `origin` remote and current branch. To pin
