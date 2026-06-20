@@ -99,7 +99,19 @@ task cluster:only
 
 All ports are configurable in `lab.env`. Changing them requires `task reset`.
 
-Argo CD login: user `admin`, password from `task argocd:password`.
+Argo CD login: user `admin`. By default Argo CD generates a random password —
+read it with `task argocd:password`. To set your own instead, put it in
+`lab.secrets`:
+
+```bash
+# lab.secrets
+ARGOCD_ADMIN_PASSWORD=your-password-here
+```
+
+`task argocd:install` bcrypt-hashes it before passing it to Helm (the plaintext
+never lands in the cluster), and re-applies it on every install — so it always
+wins over a password changed in the UI. When set, `task argocd:password` no
+longer applies (Argo CD skips the random initial-admin secret).
 
 ## Common tasks
 

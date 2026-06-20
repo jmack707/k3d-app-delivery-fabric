@@ -24,7 +24,7 @@ header() { echo ""; echo "━━━  $*  ━━━━━━━━━━━━━
 header "System packages"
 apt-get update -qq
 apt-get install -y -qq \
-  curl wget git jq python3 \
+  curl wget git jq python3 apache2-utils \
   apt-transport-https ca-certificates gnupg lsb-release \
   iptables net-tools
 ok "System packages installed"
