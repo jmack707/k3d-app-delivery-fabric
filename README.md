@@ -236,6 +236,53 @@ Then re-run `task argocd:bootstrap` — it registers an Argo CD repository Secre
 before applying the root app. (Making the repo public also works and needs no
 credential.)
 
+### Self-hosted Git (Gitea)
+
+To drop the GitHub dependency entirely, run **Gitea** as a host container — the
+same independent, long-lived pattern as the registry. Argo CD then pulls from
+Gitea over the cluster-internal `host.k3d.internal` address, so the lab is fully
+self-contained and air-gappable.
+
+```bash
+task gitea:setup     # start Gitea, create the lab repo (public), push current branch
+```
+
+It prints the exact lines to put in `lab.env`:
+
+```bash
+ARGOCD_REPO_URL=http://host.k3d.internal:3000/giteaadmin/cni-net-lab.git
+ARGOCD_TARGET_REVISION=<your branch>
+```
+
+Then re-point Argo CD at it:
+
+```bash
+task argocd:bootstrap && task argocd:wait
+```
+
+The repo is created **public**, so Argo needs no credential. Day-to-day GitOps
+loop once it's wired up:
+
+```bash
+# edit manifests → commit → publish to Gitea → let Argo reconcile
+git commit -am "tweak juiceshop"
+task gitea:push
+task argocd:sync          # optional; Argo auto-refreshes anyway
+```
+
+Gitea lifecycle (independent of `task up/down/reset`, like the registry):
+
+```bash
+task gitea:setup     # start + create repo + push (idempotent)
+task gitea:status    # container state, API, repo URL
+task gitea:push      # push current branch after commits
+task gitea:stop      # pause (keeps data volume)
+task gitea:rm        # remove container + data volume (irreversible)
+```
+
+The Gitea admin user is `GITEA_ADMIN_USER` (default `giteaadmin`); set
+`GITEA_ADMIN_PASSWORD` in `lab.secrets`. Web UI: `http://LAB_HOST_IP:3000`.
+
 ### Pointing Argo CD at a fork or fixed branch
 
 By default the bootstrap tracks your `origin` remote and current branch. To pin

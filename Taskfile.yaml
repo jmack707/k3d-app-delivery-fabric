@@ -208,3 +208,38 @@ tasks:
     desc: "Show registry container state and image count"
     cmds:
       - bash scripts/registry-status.sh
+
+  # ── Gitea (self-hosted Git) ──────────────────────────────────────────────────
+  # Optional host container (like the registry, independent of the cluster) to
+  # serve as Argo CD's source of truth instead of GitHub. After 'task gitea:setup'
+  # set ARGOCD_REPO_URL / ARGOCD_TARGET_REVISION in lab.env and re-bootstrap.
+
+  gitea:setup:
+    desc: "Start Gitea, create the lab repo, and push the current branch"
+    cmds:
+      - bash scripts/gitea-setup.sh
+
+  gitea:push:
+    desc: "Push the current branch to Gitea (run after committing changes)"
+    cmds:
+      - bash scripts/gitea-push.sh
+
+  gitea:status:
+    desc: "Show Gitea container state and repo status"
+    cmds:
+      - bash scripts/gitea-status.sh
+
+  gitea:stop:
+    desc: "Stop the Gitea container (preserves data volume)"
+    cmds:
+      - bash scripts/gitea-stop.sh
+
+  gitea:rm:
+    desc: "Remove the Gitea container AND its data volume (irreversible)"
+    cmds:
+      - bash scripts/gitea-rm.sh
+
+  gitea:ui:
+    desc: "Print the Gitea web UI URL"
+    cmds:
+      - bash scripts/gitea-status.sh
