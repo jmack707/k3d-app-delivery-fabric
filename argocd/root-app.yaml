@@ -18,6 +18,12 @@ spec:
     targetRevision: ${ARGOCD_TARGET_REVISION}
     path: argocd/lab-apps
     helm:
+      # Exposure scenario (NodePort/ClusterIP × HTTP/HTTPS). LAB_PROFILE in
+      # lab.env selects argocd/lab-apps/profiles/<profile>.yaml, layered over
+      # values.yaml. Options: mixed | nodeport-http | nodeport-https |
+      # clusterip-http | clusterip-https.
+      valueFiles:
+        - profiles/${LAB_PROFILE}.yaml
       parameters:
         - name: global.repoURL
           value: ${ARGOCD_REPO_URL}

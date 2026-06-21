@@ -1,0 +1,15 @@
+# argocd/lab-apps/profiles/nodeport-https.yaml
+# All apps exposed on the host as NodePort, with HTTPS (cert-manager + local CA;
+# crAPI uses its own chart TLS). The raw apps also keep their HTTP port.
+apps:
+  crapi:
+    serviceType: NodePort
+  juiceshop:
+    serviceType: NodePort
+    tls: true
+  dvga:
+    serviceType: NodePort
+    tls: true
+  vampi:
+    serviceType: NodePort
+    tls: true

@@ -9,12 +9,18 @@ spec:
   ports:
   - port: {{ .Values.web.port }}
     targetPort: 80
+    {{- if ne (.Values.web.service.type | default "LoadBalancer") "ClusterIP" }}
     nodePort: {{ .Values.web.service.nodePort }}
+    {{- end }}
     name: nginx
   - port: {{ .Values.web.sslPort }}
     targetPort: 443
+    {{- if ne (.Values.web.service.type | default "LoadBalancer") "ClusterIP" }}
     nodePort: {{ .Values.web.service.sslNodePort }}
+    {{- end }}
     name: nginx-ssl
-  type: LoadBalancer
+  # Lab override (cni-net-lab): web.service.type lets the lab switch crAPI
+  # between NodePort and ClusterIP. Upstream default stays LoadBalancer.
+  type: {{ .Values.web.service.type | default "LoadBalancer" }}
   selector:
     {{- toYaml .Values.web.serviceSelectorLabels | nindent 4 }}

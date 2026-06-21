@@ -30,11 +30,21 @@ if [ -z "${ARGOCD_TARGET_REVISION}" ]; then
   ARGOCD_TARGET_REVISION="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 fi
 
+# ── Resolve exposure profile ──────────────────────────────────────────────────
+LAB_PROFILE="${LAB_PROFILE:-mixed}"
+PROFILE_FILE="${REPO_DIR}/argocd/lab-apps/profiles/${LAB_PROFILE}.yaml"
+if [ ! -f "${PROFILE_FILE}" ]; then
+  err "Unknown LAB_PROFILE '${LAB_PROFILE}' — no such file: argocd/lab-apps/profiles/${LAB_PROFILE}.yaml"
+  err "Valid: mixed | nodeport-http | nodeport-https | clusterip-http | clusterip-https"
+  exit 1
+fi
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Argo CD bootstrap (app of apps)"
 echo "  Repo:     ${ARGOCD_REPO_URL}"
 echo "  Revision: ${ARGOCD_TARGET_REVISION}"
+echo "  Profile:  ${LAB_PROFILE}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify Argo CD is present before registering the app.
@@ -77,8 +87,8 @@ elif [[ "${ARGOCD_REPO_URL}" == https://* ]]; then
   warn "access) in lab.secrets, then re-run 'task argocd:bootstrap'."
 fi
 
-export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION LAB_HOST_IP LAB_DOMAIN
-envsubst '${ARGOCD_REPO_URL} ${ARGOCD_TARGET_REVISION} ${LAB_HOST_IP} ${LAB_DOMAIN}' \
+export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION LAB_HOST_IP LAB_DOMAIN LAB_PROFILE
+envsubst '${ARGOCD_REPO_URL} ${ARGOCD_TARGET_REVISION} ${LAB_HOST_IP} ${LAB_DOMAIN} ${LAB_PROFILE}' \
   < "${REPO_DIR}/argocd/root-app.yaml" \
   | kubectl apply -n "${ARGOCD_NAMESPACE}" -f -
 

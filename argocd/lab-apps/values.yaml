@@ -26,6 +26,7 @@ apps:
     namespace: crapi
     path: apps/crapi/chart
     valuesPath: apps/crapi/values.yaml
+    serviceType: NodePort       # NodePort or ClusterIP (crAPI always serves http+https)
     httpNodePort: 30080
     httpsNodePort: 30443
 

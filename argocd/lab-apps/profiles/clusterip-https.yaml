@@ -1,0 +1,15 @@
+# argocd/lab-apps/profiles/clusterip-https.yaml
+# All apps as ClusterIP with HTTPS terminated in-pod (nginx sidecar + cert).
+# Not reachable on the host; intended for an ingress that talks HTTPS upstream.
+apps:
+  crapi:
+    serviceType: ClusterIP
+  juiceshop:
+    serviceType: ClusterIP
+    tls: true
+  dvga:
+    serviceType: ClusterIP
+    tls: true
+  vampi:
+    serviceType: ClusterIP
+    tls: true

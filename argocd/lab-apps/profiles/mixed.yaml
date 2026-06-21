@@ -1,0 +1,16 @@
+# argocd/lab-apps/profiles/mixed.yaml
+# Default profile — preserves the lab's original per-app exposure:
+#   crapi/juiceshop NodePort (juiceshop HTTPS), dvga/vampi ClusterIP HTTP.
+# Layered over values.yaml by the root app (LAB_PROFILE in lab.env).
+apps:
+  crapi:
+    serviceType: NodePort
+  juiceshop:
+    serviceType: NodePort
+    tls: true
+  dvga:
+    serviceType: ClusterIP
+    tls: false
+  vampi:
+    serviceType: ClusterIP
+    tls: false

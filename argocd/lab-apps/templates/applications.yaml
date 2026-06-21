@@ -35,6 +35,8 @@ spec:
         valueFiles:
           - $values/{{ $app.valuesPath }}
         parameters:
+          - name: web.service.type
+            value: {{ $app.serviceType | quote }}
           - name: web.service.nodePort
             value: {{ $app.httpNodePort | quote }}
           - name: web.service.sslNodePort

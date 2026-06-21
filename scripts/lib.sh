@@ -129,6 +129,19 @@ load_lab_env() {
   export LAB_APPS="${LAB_APPS:-${VALID_APPS}}"
   export HTTPS_APPS="${HTTPS_APPS:-}"
   export CLUSTERIP_APPS="${CLUSTERIP_APPS:-}"
+
+  # Exposure profile (matches argocd/lab-apps/profiles/<name>.yaml). For the
+  # named matrix profiles, derive HTTPS_APPS / CLUSTERIP_APPS so 'task health'
+  # and 'task test' probe exactly what Argo CD deployed. 'mixed' (and any custom
+  # profile name) keeps whatever HTTPS_APPS / CLUSTERIP_APPS lab.env sets.
+  export LAB_PROFILE="${LAB_PROFILE:-mixed}"
+  case "${LAB_PROFILE}" in
+    nodeport-http)   export HTTPS_APPS=""              CLUSTERIP_APPS="" ;;
+    nodeport-https)  export HTTPS_APPS="${VALID_APPS}" CLUSTERIP_APPS="" ;;
+    clusterip-http)  export HTTPS_APPS=""              CLUSTERIP_APPS="${VALID_APPS}" ;;
+    clusterip-https) export HTTPS_APPS="${VALID_APPS}" CLUSTERIP_APPS="${VALID_APPS}" ;;
+    *)               : ;;  # mixed / custom — respect lab.env lists
+  esac
 }
 
 # Resolve an app's Service type from CLUSTERIP_APPS.

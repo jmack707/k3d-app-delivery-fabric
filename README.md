@@ -197,10 +197,38 @@ apps/
 `task up` runs steps 1–2 for you, then `task argocd:wait` blocks until every
 Application reports **Synced / Healthy** before the final `task health`.
 
-### Changing what's deployed
+### Deployment profiles (NodePort/ClusterIP × HTTP/HTTPS)
 
-Edit `argocd/lab-apps/values.yaml`, commit, and push. Argo CD picks the change
-up automatically (or run `task argocd:sync` to force an immediate refresh):
+The fastest way to flip *all* apps between exposure scenarios is `LAB_PROFILE`
+in `lab.env`. It selects a committed scenario file under
+`argocd/lab-apps/profiles/` that Argo layers over the base values, **and** drives
+what `task health`/`task test` probe — so you change one line, not many:
+
+| `LAB_PROFILE` | Service type | Scheme | On host? |
+|---|---|---|---|
+| `mixed` (default) | per-app | per-app | per-app (original lab layout) |
+| `nodeport-http` | NodePort | HTTP | yes |
+| `nodeport-https` | NodePort | HTTPS | yes |
+| `clusterip-http` | ClusterIP | HTTP | no (ingress-prep) |
+| `clusterip-https` | ClusterIP | HTTPS | no (ingress-prep) |
+
+```bash
+# lab.env
+LAB_PROFILE=clusterip-http
+```
+```bash
+task argocd:bootstrap && task argocd:wait   # re-point Argo at the new profile
+```
+
+Under the named matrix profiles, `HTTPS_APPS`/`CLUSTERIP_APPS` are derived
+automatically; under `mixed` they are the per-app source of truth (keep them
+matching `profiles/mixed.yaml`). crAPI honors `serviceType` too, but always
+serves both HTTP and HTTPS from its upstream chart.
+
+### Changing individual apps
+
+For finer control than a whole-lab profile, edit `argocd/lab-apps/values.yaml`
+(or a profile file), commit, and push — Argo picks it up (or `task argocd:sync`):
 
 ```yaml
 apps:
@@ -209,9 +237,6 @@ apps:
     tls: true            # HTTP-only when false (drops the nginx TLS sidecar + cert)
     serviceType: NodePort  # or ClusterIP to hide it from the host (e.g. behind an ingress)
 ```
-
-> Keep `HTTPS_APPS` / `CLUSTERIP_APPS` in `lab.env` in sync with this file —
-> `task health` and `task test` read those lists to decide what to probe.
 
 ClusterIP apps are **not** reachable on `LAB_HOST_IP`; port-forward to reach one:
 
