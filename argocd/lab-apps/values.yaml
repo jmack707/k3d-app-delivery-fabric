@@ -7,8 +7,11 @@
 # below only matter when rendering this chart standalone with `helm template`.
 #
 # Per-app tls / serviceType / nodePorts ARE the GitOps source of truth. Keep
-# them in sync with HTTPS_APPS / CLUSTERIP_APPS / *_PORT in lab.env so the
-# verification scripts (task health / task test) report correctly.
+# tls / serviceType in sync with HTTPS_APPS / CLUSTERIP_APPS in lab.env so the
+# verification scripts (task health / task test) report correctly. The
+# httpNodePort / httpsNodePort below are the authoritative per-app port
+# assignments — keep them within NODEPORT_RANGES in lab.env (default covers
+# 30080-30099 and 30440-30459).
 global:
   repoURL: https://github.com/jmack707/cni-net-lab.git
   targetRevision: main

@@ -10,7 +10,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 CLUSTER_NAME="${CLUSTER_NAME:-cni-net-lab}"
 LAB_HOST_IP="${LAB_HOST_IP:?LAB_HOST_IP not set in lab.env}"
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
-LAB_APPS="${LAB_APPS:-crapi juiceshop dvga vampi}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -35,37 +34,39 @@ if [ -z "${LAB_IFACE}" ]; then
 fi
 info "Host interface: ${LAB_IFACE}"
 
-# ── Pre-flight: verify all active app NodePorts are configured ────────────────
+# ── NodePort range bindings ───────────────────────────────────────────────────
+# Publish a band of NodePorts to the host once, instead of per-app ports. Any
+# app NodePort (assigned in argocd/lab-apps/values.yaml) that falls within these
+# ranges is reachable on LAB_HOST_IP with no cluster rebuild — so adding or
+# repointing an app no longer needs 'task reset'. The app→port mapping lives in
+# Gitea (lab-apps), not here.
+NODEPORT_RANGES="${NODEPORT_RANGES:-30080-30099 30440-30459}"
+
+# port_in_ranges <port> "<lo-hi> <lo-hi> ..."  → 0 if port falls in any range.
+port_in_ranges() {
+  local port="$1" ranges="$2" r lo hi
+  for r in ${ranges}; do
+    lo="${r%-*}"; hi="${r#*-}"
+    if [ "${port}" -ge "${lo}" ] && [ "${port}" -le "${hi}" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 NODEPORT_ARGS=()
-MISSING_PORTS=()
-
-for app in ${LAB_APPS}; do
-  HTTP_PORT=$(app_http_port "${app}")
-  HTTPS_PORT=$(app_https_port "${app}")
-
-  if [ -z "${HTTP_PORT}" ]; then
-    MISSING_PORTS+=("${app} HTTP port")
-  else
-    NODEPORT_ARGS+=(--port "${LAB_HOST_IP}:${HTTP_PORT}:${HTTP_PORT}@loadbalancer")
-  fi
-
-  if [ -z "${HTTPS_PORT}" ]; then
-    MISSING_PORTS+=("${app} HTTPS port")
-  else
-    NODEPORT_ARGS+=(--port "${LAB_HOST_IP}:${HTTPS_PORT}:${HTTPS_PORT}@loadbalancer")
-  fi
+for range in ${NODEPORT_RANGES}; do
+  NODEPORT_ARGS+=(--port "${LAB_HOST_IP}:${range}:${range}@loadbalancer")
 done
+info "Publishing NodePort ranges: ${NODEPORT_RANGES}"
 
-if [ "${#MISSING_PORTS[@]}" -gt 0 ]; then
-  err "Missing NodePort config for: ${MISSING_PORTS[*]}"
-  err "Check *_HTTP_PORT and *_HTTPS_PORT entries in lab.env"
+# The Argo CD UI NodePort must fall within the published ranges to be reachable.
+ARGOCD_HTTP_PORT="${ARGOCD_HTTP_PORT:-30090}"
+if ! port_in_ranges "${ARGOCD_HTTP_PORT}" "${NODEPORT_RANGES}"; then
+  err "ARGOCD_HTTP_PORT ${ARGOCD_HTTP_PORT} is outside NODEPORT_RANGES (${NODEPORT_RANGES})"
+  err "Widen NODEPORT_RANGES in lab.env, or move ARGOCD_HTTP_PORT into a range."
   exit 1
 fi
-
-# ── Argo CD UI NodePort (GitOps control plane) ────────────────────────────────
-# Always bound — Argo CD manages every app, so its UI is part of the lab.
-ARGOCD_HTTP_PORT="${ARGOCD_HTTP_PORT:-30090}"
-NODEPORT_ARGS+=(--port "${LAB_HOST_IP}:${ARGOCD_HTTP_PORT}:${ARGOCD_HTTP_PORT}@loadbalancer")
 
 # ── Registry check (advisory only) ───────────────────────────────────────────
 # Registry is independent — cluster creation does not require it.

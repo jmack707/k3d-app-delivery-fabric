@@ -86,6 +86,12 @@ task cluster:only
 | `LAB_AGENTS` | `2` | k3d agent count. Change requires `task reset`. |
 | `LAB_APPS` | all four | Space-separated: `crapi juiceshop dvga vampi` |
 | `HTTPS_APPS` | `"crapi juiceshop"` | Subset of `LAB_APPS`. Others get HTTP only. |
+| `NODEPORT_RANGES` | `"30080-30099 30440-30459"` | Host NodePort bands published at create. Change requires `task reset`. |
+
+Per-app NodePort numbers are **not** in `lab.env` — they live in
+`argocd/lab-apps/values.yaml` (`httpNodePort` / `httpsNodePort`) and just need to
+fall within `NODEPORT_RANGES`. Changing an app's port is a Gitops edit (push +
+sync), not a cluster rebuild.
 
 ## App endpoints
 
@@ -97,7 +103,9 @@ task cluster:only
 | VAmPI | `http://LAB_HOST_IP:30083` | `https://LAB_HOST_IP:30446` |
 | **Argo CD UI** | `http://LAB_HOST_IP:30090` | — (insecure/HTTP, lab only) |
 
-All ports are configurable in `lab.env`. Changing them requires `task reset`.
+App NodePorts live in `argocd/lab-apps/values.yaml` and can be changed via GitOps
+(push + sync) as long as they stay within `NODEPORT_RANGES`. Only changing the
+*ranges* themselves (or `ARGOCD_HTTP_PORT`) requires `task reset`.
 
 Argo CD login: user `admin`. By default Argo CD generates a random password —
 read it with `task argocd:password`. To set your own instead, put it in
