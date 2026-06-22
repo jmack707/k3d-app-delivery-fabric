@@ -34,11 +34,13 @@ else
     docker rm "${GITEA_NAME}"
   fi
   info "Starting Gitea container (${GITEA_IMAGE})..."
+  # Publish on 0.0.0.0 (all host interfaces). Argo CD's repo-server is a POD, so
+  # it reaches Gitea via the cluster gateway (host.k3d.internal) — that path only
+  # works if the port is published on all interfaces, not just 127.0.0.1.
   docker run -d \
     --name "${GITEA_NAME}" \
     --restart always \
-    -p "127.0.0.1:${GITEA_HTTP_PORT}:3000" \
-    -p "${LAB_HOST_IP}:${GITEA_HTTP_PORT}:3000" \
+    -p "${GITEA_HTTP_PORT}:3000" \
     -v "${GITEA_NAME}-data:/data" \
     -e GITEA__database__DB_TYPE=sqlite3 \
     -e GITEA__database__PATH=/data/gitea/gitea.db \
@@ -106,5 +108,9 @@ echo ""
 echo "    task argocd:bootstrap && task argocd:wait"
 echo ""
 echo "  The repo is public, so no ARGOCD_REPO_PASSWORD is needed."
+echo ""
+echo "  If Argo can't reach host.k3d.internal, fall back to the host IP:"
+echo "    ARGOCD_REPO_URL=http://${LAB_HOST_IP}:${GITEA_HTTP_PORT}/${GITEA_ADMIN_USER}/${GITEA_REPO}.git"
+echo ""
 echo "  After future commits: task gitea:push && task argocd:sync"
 echo ""
