@@ -14,6 +14,10 @@ require_cluster
 ARGOCD_VERSION="${ARGOCD_CHART_VERSION:-7.7.5}"   # argo-helm chart version (Argo CD v2.13.x)
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ARGOCD_HTTP_PORT="${ARGOCD_HTTP_PORT:-30090}"
+# The chart defaults the HTTPS NodePort to 30443, which collides with crAPI's
+# HTTPS NodePort. We serve the UI over HTTP (insecure), so this port is unused —
+# park it on a non-conflicting value to free 30443 for the apps.
+ARGOCD_HTTPS_NODEPORT="${ARGOCD_HTTPS_NODEPORT:-30091}"
 ARGOCD_ADMIN_PASSWORD="${ARGOCD_ADMIN_PASSWORD:-}"   # plaintext, from lab.secrets
 
 # Produce a bcrypt hash of $1 for the chart's argocdServerAdminPassword value.
@@ -68,6 +72,7 @@ helm upgrade --install argocd argo/argo-cd \
   --set configs.params."server\.insecure"=true \
   --set server.service.type=NodePort \
   --set server.service.nodePortHttp="${ARGOCD_HTTP_PORT}" \
+  --set server.service.nodePortHttps="${ARGOCD_HTTPS_NODEPORT}" \
   "${ADMIN_PW_SET[@]}" \
   --wait \
   --timeout 600s
