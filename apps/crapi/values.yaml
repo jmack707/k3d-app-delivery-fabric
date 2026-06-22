@@ -18,3 +18,11 @@ web:
   service:
     nodePort: 30080
     sslNodePort: 30443
+
+# MailHog's web-ingress Service defaults to LoadBalancer, which never gets an
+# external IP in this lab (k3s ServiceLB disabled) and leaves Argo CD stuck
+# "Progressing". MailHog is reached via 'task crapi:mail' (port-forward), so
+# expose it as ClusterIP instead.
+mailhog:
+  webService:
+    type: ClusterIP
