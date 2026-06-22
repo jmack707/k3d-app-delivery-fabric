@@ -6,7 +6,7 @@ apps:
   crapi:
     serviceType: NodePort
   juiceshop:
-    serviceType: NodePort
+    serviceType: ClusterIP
     tls: true
   dvga:
     serviceType: ClusterIP
