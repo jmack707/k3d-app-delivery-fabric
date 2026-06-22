@@ -39,12 +39,20 @@ if [ ! -f "${PROFILE_FILE}" ]; then
   exit 1
 fi
 
+# ── Resolve ingress/routing layer ─────────────────────────────────────────────
+INGRESS_KIND="${INGRESS_KIND:-none}"
+case "${INGRESS_KIND}" in
+  none|nginx|cis|gateway) ;;
+  *) err "Invalid INGRESS_KIND '${INGRESS_KIND}'. Valid: none | nginx | cis | gateway"; exit 1 ;;
+esac
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Argo CD bootstrap (app of apps)"
 echo "  Repo:     ${ARGOCD_REPO_URL}"
 echo "  Revision: ${ARGOCD_TARGET_REVISION}"
 echo "  Profile:  ${LAB_PROFILE}"
+echo "  Ingress:  ${INGRESS_KIND}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Verify Argo CD is present before registering the app.
@@ -94,8 +102,8 @@ else
   fi
 fi
 
-export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION LAB_HOST_IP LAB_DOMAIN LAB_PROFILE
-envsubst '${ARGOCD_REPO_URL} ${ARGOCD_TARGET_REVISION} ${LAB_HOST_IP} ${LAB_DOMAIN} ${LAB_PROFILE}' \
+export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION LAB_HOST_IP LAB_DOMAIN LAB_PROFILE INGRESS_KIND
+envsubst '${ARGOCD_REPO_URL} ${ARGOCD_TARGET_REVISION} ${LAB_HOST_IP} ${LAB_DOMAIN} ${LAB_PROFILE} ${INGRESS_KIND}' \
   < "${REPO_DIR}/argocd/root-app.yaml" \
   | kubectl apply -n "${ARGOCD_NAMESPACE}" -f -
 

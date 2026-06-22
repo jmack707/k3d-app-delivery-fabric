@@ -14,6 +14,9 @@ global:
   targetRevision: main
   labHostIp: ""
   labDomain: lab.local
+  # North-south routing layer (argocd/exposure). none disables it entirely.
+  # INGRESS_KIND in lab.env overrides this: none | nginx | cis | gateway.
+  ingressKind: none
 
 # Argo CD install namespace and the AppProject these Applications belong to.
 argocdNamespace: argocd

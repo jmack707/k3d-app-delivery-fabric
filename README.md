@@ -349,12 +349,43 @@ sudo cp root_ca.crt /usr/local/share/ca-certificates/cni-net-lab.crt
 sudo update-ca-certificates
 ```
 
-## Adding an ingress controller later
+## Ingress / load-balancer layer (`INGRESS_KIND`)
 
-The cluster has no ingress controller by design. When you're ready to add NGINX or BIG-IP CIS:
+The cluster ships with no ingress controller by design. When you're ready to put
+the apps behind one, you **don't touch the app charts** — they keep their
+NodePort Services. A separate Argo CD Application (`argocd/exposure`) renders the
+controller-specific routing resources that point at those existing Services, so
+you get the NodePort path *and* the ingress path at once.
 
-1. Install the controller into the cluster normally (Helm or kubectl)
-2. Update app Services from `NodePort` to `ClusterIP` if routing through ingress
-3. Add Ingress or VirtualServer resources per app
+Pick the controller with one switch in `lab.env`:
 
-The NodePort bindings in `create-cluster.sh` can coexist with an LB/ingress — no cluster rebuild required for that change.
+```bash
+INGRESS_KIND=nginx     # none | nginx | cis | gateway
+```
+```bash
+task argocd:bootstrap && task argocd:wait
+```
+
+| `INGRESS_KIND` | Renders | Needs installed first |
+|---|---|---|
+| `none` (default) | nothing | — |
+| `nginx` | `networking.k8s.io/v1` **Ingress** per app | an NGINX ingress controller |
+| `cis` | F5 **VirtualServer** (`cis.f5.com/v1`) per app | CIS CRDs + controller + a BIG-IP |
+| `gateway` | one **Gateway** + an **HTTPRoute** per app | Gateway API CRDs (e.g. NGINX Gateway Fabric) |
+
+- **Apps stay on NodePort** — an ingress controller routes to a Service's
+  endpoints regardless of its type, so nothing in the app charts (or the
+  vendored crAPI chart) changes. For BIG-IP CIS NodePort mode, keeping NodePort
+  is exactly what CIS expects.
+- **Per-controller settings** (ingress class, BIG-IP virtual-server address /
+  IPAM label, GatewayClass, hostnames) live in `argocd/exposure/values.yaml`.
+- **GitOps add/remove:** set `INGRESS_KIND=none` (or `kind: none`) and Argo
+  prunes every route; switch to a controller and it deploys them. The routing
+  layer has its own Argo Application, so you can iterate on it without touching
+  the apps.
+- `kind: cis` and `kind: gateway` require their CRDs/controller installed first,
+  or Argo will report `no matches for kind ...`. Install the controller, then
+  re-sync.
+
+The NodePort bindings in `create-cluster.sh` coexist with an LB/ingress — no
+cluster rebuild required.

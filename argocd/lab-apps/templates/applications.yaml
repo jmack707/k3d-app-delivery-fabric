@@ -67,3 +67,41 @@ spec:
   {{- end }}
 {{- end }}
 {{- end }}
+{{- if ne ($g.ingressKind | default "none") "none" }}
+---
+# North-south routing layer — separate Application so it has its own lifecycle.
+# Renders ingress/LB resources (kind = nginx | cis | gateway) that reference the
+# apps' existing Services. Resources carry their own namespaces, so the
+# destination namespace below is only the default for the Gateway.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: exposure
+  namespace: {{ $.Values.argocdNamespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: {{ $.Values.project }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  source:
+    repoURL: {{ $g.repoURL | quote }}
+    targetRevision: {{ $g.targetRevision | quote }}
+    path: argocd/exposure
+    helm:
+      parameters:
+        - name: kind
+          value: {{ $g.ingressKind | quote }}
+        - name: labDomain
+          value: {{ $g.labDomain | quote }}
+        - name: labHostIp
+          value: {{ $g.labHostIp | quote }}
+{{- end }}

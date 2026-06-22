@@ -33,6 +33,8 @@ spec:
           value: ${LAB_HOST_IP}
         - name: global.labDomain
           value: ${LAB_DOMAIN}
+        - name: global.ingressKind
+          value: ${INGRESS_KIND}
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

@@ -1,0 +1,68 @@
+# argocd/exposure/values.yaml
+#
+# Routing layer for the lab apps. Apps keep their own Services (NodePort by
+# default) — these resources just sit in front and reference those Services by
+# name, so nothing in the app charts changes.
+#
+# kind selects the controller flavor. INGRESS_KIND in lab.env overrides it via
+# the root app; labDomain / labHostIp come from the root app globals too.
+#   none    — render nothing (default; lab unaffected)
+#   nginx   — networking.k8s.io/v1 Ingress (ingressClassName: nginx)
+#   cis     — F5 BIG-IP CIS VirtualServer (cis.f5.com/v1)
+#   gateway — Gateway API: one Gateway + an HTTPRoute per app (NGINX Gateway Fabric)
+#
+# kind=cis and kind=gateway require their CRDs (and controller) installed first.
+kind: none
+
+labDomain: lab.local
+labHostIp: ""
+
+# Per-app routing targets. namespace/serviceName/servicePort match what the app
+# charts deploy; host defaults to <app>.<labDomain> when blank.
+apps:
+  crapi:
+    enabled: true
+    namespace: crapi
+    serviceName: crapi-web
+    servicePort: 80
+    host: ""
+    tls: false
+  juiceshop:
+    enabled: true
+    namespace: juice-shop
+    serviceName: juice-shop
+    servicePort: 3000
+    host: ""
+    tls: false
+  dvga:
+    enabled: true
+    namespace: dvga
+    serviceName: dvga
+    servicePort: 5013
+    host: ""
+    tls: false
+  vampi:
+    enabled: true
+    namespace: vampi
+    serviceName: vampi
+    servicePort: 5000
+    host: ""
+    tls: false
+
+# ── kind: nginx ────────────────────────────────────────────────────────────────
+nginx:
+  ingressClassName: nginx
+  annotations: {}
+
+# ── kind: cis (F5 BIG-IP) ───────────────────────────────────────────────────────
+cis:
+  # One of virtualServerAddress or ipamLabel is required by CIS.
+  virtualServerAddress: ""   # the BIG-IP virtual-server IP
+  ipamLabel: ""              # or an F5 IPAM label
+  tlsProfileName: ""         # optional: name of a CIS TLSProfile for HTTPS
+
+# ── kind: gateway (Gateway API / NGINX Gateway Fabric) ──────────────────────────
+gateway:
+  name: cni-net-lab-gw
+  namespace: default         # must already exist (Gateway is created here)
+  className: nginx           # GatewayClass name
