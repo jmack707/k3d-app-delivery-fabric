@@ -63,7 +63,7 @@ fi
 ARGOCD_REPO_USERNAME="${ARGOCD_REPO_USERNAME:-git}"
 ARGOCD_REPO_PASSWORD="${ARGOCD_REPO_PASSWORD:-}"
 
-if [ -n "${ARGOCD_REPO_PASSWORD}" ]; then
+if [ -n "${ARGOCD_REPO_PASSWORD}" ] && [[ "${ARGOCD_REPO_URL}" != http://* ]]; then
   info "Registering repository credential for ${ARGOCD_REPO_URL}..."
   kubectl apply -n "${ARGOCD_NAMESPACE}" -f - <<SECRET
 apiVersion: v1
@@ -80,11 +80,18 @@ stringData:
   password: ${ARGOCD_REPO_PASSWORD}
 SECRET
   ok "Repository credential registered"
-elif [[ "${ARGOCD_REPO_URL}" == https://* ]]; then
-  warn "No ARGOCD_REPO_PASSWORD set — Argo CD will clone anonymously."
-  warn "If ${ARGOCD_REPO_URL} is PRIVATE, the root app will stay Sync=Unknown."
-  warn "Set ARGOCD_REPO_USERNAME / ARGOCD_REPO_PASSWORD (a GitHub PAT with read"
-  warn "access) in lab.secrets, then re-run 'task argocd:bootstrap'."
+else
+  # No credential needed (public repo). Remove any stale credential Secret so it
+  # can't shadow a now-public or changed repo URL with wrong/old creds.
+  kubectl delete secret repo-cni-net-lab -n "${ARGOCD_NAMESPACE}" --ignore-not-found >/dev/null 2>&1 || true
+  if [ -n "${ARGOCD_REPO_PASSWORD}" ]; then
+    info "Repo URL is http:// — treating as public; skipping credential registration"
+  elif [[ "${ARGOCD_REPO_URL}" == https://* ]]; then
+    warn "No ARGOCD_REPO_PASSWORD set — Argo CD will clone anonymously."
+    warn "If ${ARGOCD_REPO_URL} is PRIVATE, the root app will stay Sync=Unknown."
+    warn "Set ARGOCD_REPO_USERNAME / ARGOCD_REPO_PASSWORD (a GitHub PAT with read"
+    warn "access) in lab.secrets, then re-run 'task argocd:bootstrap'."
+  fi
 fi
 
 export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION LAB_HOST_IP LAB_DOMAIN LAB_PROFILE
