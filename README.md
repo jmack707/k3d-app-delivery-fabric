@@ -53,7 +53,7 @@ sudo bash scripts/install-prereqs.sh
 # Log out and back in after this step (docker group membership)
 
 # 2. Copy and edit config
-cp lab.env.example lab.env          # set LAB_HOST_IP, CNI, LAB_APPS, HTTPS_APPS
+cp lab.env.example lab.env          # set LAB_HOST_IP, CNI, LAB_PROFILE
 cp lab.secrets.example lab.secrets  # fill in credentials when needed
 
 # 3. Verify tools
@@ -84,18 +84,20 @@ task cluster:only
 | `LAB_HOST_IP` | — | Your Ubuntu VM's IP. Run: `ip route get 1.1.1.1 \| grep -oP 'src \K[\d.]+'` |
 | `CNI` | `cilium` | `calico` or `cilium`. Change requires `task reset`. |
 | `LAB_AGENTS` | `2` | k3d agent count. Change requires `task reset`. |
-| `LAB_APPS` | all four | Space-separated: `crapi juiceshop dvga vampi` |
-| `HTTPS_APPS` | `"crapi juiceshop"` | Subset of `LAB_APPS`. Others get HTTP only. |
+| `LAB_PROFILE` | `mixed` | Exposure scenario (selects a `lab-apps/profiles/*.yaml`). |
+| `INGRESS_KIND` | `none` | Routing layer: `none`/`nginx`/`cis`/`gateway`. |
 | `NODEPORT_RANGES` | `"30080-30099 30440-30459"` | Host NodePort bands published at create. Change requires `task reset`. |
 
-Per-app NodePort numbers are **not** in `lab.env` — they live in
-`argocd/lab-apps/values.yaml` (`httpNodePort` / `httpsNodePort`) and just need to
-fall within `NODEPORT_RANGES`. Changing an app's port is a Gitops edit (push +
-sync), not a cluster rebuild.
+**`lab.env` contains no app list or per-app exposure.** Which apps deploy and how
+each is exposed (NodePort/ClusterIP, HTTP/HTTPS, ports) lives entirely in Gitea —
+`argocd/lab-apps/values.yaml` (+ the profile files). `task health`/`test` read the
+live cluster, so there's nothing to keep in sync. Changing an app's port/type is a
+GitOps edit (push + sync); only `NODEPORT_RANGES` / `ARGOCD_HTTP_PORT` need a
+`task reset`.
 
 ## App endpoints
 
-| App | HTTP | HTTPS (if in HTTPS_APPS) |
+| App | HTTP | HTTPS (when its profile enables TLS) |
 |---|---|---|
 | crAPI | `http://LAB_HOST_IP:30080` | `https://LAB_HOST_IP:30443` |
 | Juice Shop | `http://LAB_HOST_IP:30081` | `https://LAB_HOST_IP:30444` |
@@ -228,10 +230,9 @@ LAB_PROFILE=clusterip-http
 task argocd:bootstrap && task argocd:wait   # re-point Argo at the new profile
 ```
 
-Under the named matrix profiles, `HTTPS_APPS`/`CLUSTERIP_APPS` are derived
-automatically; under `mixed` they are the per-app source of truth (keep them
-matching `profiles/mixed.yaml`). crAPI honors `serviceType` too, but always
-serves both HTTP and HTTPS from its upstream chart.
+`task health`/`test` read the live cluster, so switching profiles needs no other
+edits — they probe whatever Argo actually deployed. crAPI honors `serviceType`
+too, but always serves both HTTP and HTTPS from its upstream chart.
 
 ### Changing individual apps
 
@@ -345,7 +346,7 @@ automatically when an image is present there.
 
 ## TLS trust
 
-When any app is in `HTTPS_APPS`, a local root CA (`root_ca.crt`) is created and used by cert-manager. Install it in your OS/browser to avoid TLS warnings:
+When any app has TLS enabled, a local root CA (`root_ca.crt`) is created and used by cert-manager. Install it in your OS/browser to avoid TLS warnings:
 
 ```bash
 # macOS

@@ -11,6 +11,15 @@ CLUSTER_NAME="${CLUSTER_NAME:-cni-net-lab}"
 LAB_HOST_IP="${LAB_HOST_IP:?LAB_HOST_IP not set in lab.env}"
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
 
+# ── Idempotency: skip creation if the cluster already exists ──────────────────
+# Makes 'task up' re-runnable / converging — the later steps (CNI, cert-manager,
+# Argo CD) are all idempotent. Rebuild from scratch with 'task reset'.
+if k3d cluster list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "${CLUSTER_NAME}"; then
+  ok "Cluster '${CLUSTER_NAME}' already exists — skipping creation"
+  echo "  Rebuild from scratch:  task reset   (or 'task down' first)"
+  exit 0
+fi
+
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Create Cluster: ${CLUSTER_NAME}"

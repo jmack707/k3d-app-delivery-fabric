@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/ca-init.sh
 # Create a local root CA (once). Skips if root_ca.crt already exists.
-# The CA is used by cert-manager to issue TLS certs for HTTPS_APPS.
+# The CA is used by cert-manager to issue TLS certs for apps with tls enabled.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap

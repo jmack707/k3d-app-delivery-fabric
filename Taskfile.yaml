@@ -106,14 +106,15 @@ tasks:
   # ── Pre-deploy ─────────────────────────────────────────────────────────────
 
   pre-deploy:
-    desc: "Create namespaces, import CA, install cert-manager if HTTPS_APPS is set"
+    desc: "Bootstrap cert-manager, import the local CA, and apply the ClusterIssuer"
     cmds:
       - bash scripts/pre-deploy.sh
 
   # ── Argo CD (GitOps) ─────────────────────────────────────────────────────────
   # Apps are no longer deployed by scripts — Argo CD reconciles them from git.
   # Edit which apps deploy and how they're exposed in argocd/lab-apps/values.yaml
-  # (keep lab.env HTTPS_APPS / CLUSTERIP_APPS in sync for the health/test checks).
+  # (+ the profile files). task health/test read the live cluster — nothing in
+  # lab.env to keep in sync.
 
   argocd:install:
     desc: "Install Argo CD via Helm (NodePort UI on ARGOCD_HTTP_PORT)"

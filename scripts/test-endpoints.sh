@@ -24,7 +24,9 @@ smoke() {
   fi
 }
 
-for app in ${LAB_APPS}; do
+APPS="$(deployed_apps)"
+[ -z "${APPS}" ] && warn "No Argo CD Applications found for known apps"
+for app in ${APPS}; do
   name=$(app_display_name "${app}")
 
   # ClusterIP apps aren't reachable on the host IP — skip with a note.
@@ -33,8 +35,9 @@ for app in ${LAB_APPS}; do
     continue
   fi
 
-  http="http://${LAB_HOST_IP}:$(app_http_port "${app}")"
-  https="https://${LAB_HOST_IP}:$(app_https_port "${app}")"
+  http_np=$(app_node_port "${app}" http)
+  https_np=$(app_node_port "${app}" https)
+  http="http://${LAB_HOST_IP}:${http_np}"
 
   # Root HTTP endpoint
   smoke "${name} HTTP " "${http}/"
@@ -48,9 +51,9 @@ for app in ${LAB_APPS}; do
     done
   fi
 
-  # HTTPS endpoint, only when the app is in HTTPS_APPS
-  if app_in_list "${app}" "${HTTPS_APPS}"; then
-    smoke "${name} HTTPS" "${https}/"
+  # HTTPS endpoint, only when the Service actually publishes a TLS NodePort
+  if [ -n "${https_np}" ]; then
+    smoke "${name} HTTPS" "https://${LAB_HOST_IP}:${https_np}/"
   fi
 done
 

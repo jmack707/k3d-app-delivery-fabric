@@ -15,7 +15,7 @@ service:
   httpsNodePort: 30444
 
 # TLS is terminated by an nginx sidecar using a cert-manager-issued secret
-# (<name>-tls). Enabled only when this app is in HTTPS_APPS.
+# (<name>-tls). Enabled only when tls.enabled is true (set per profile/values).
 tls:
   enabled: true
 
