@@ -93,23 +93,54 @@ esac
 # ── Push current branch ───────────────────────────────────────────────────────
 bash "${SCRIPT_DIR}/gitea-push.sh"
 
-# ── Argo CD wiring hint ───────────────────────────────────────────────────────
+# ── Point Argo CD at Gitea (persist into lab.env) ─────────────────────────────
 CLUSTER_URL="http://host.k3d.internal:${GITEA_HTTP_PORT}/${GITEA_ADMIN_USER}/${GITEA_REPO}.git"
 BRANCH="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+LAB_ENV_FILE="${REPO_DIR}/lab.env"
+
+# Set-or-update a KEY=VALUE in lab.env (URLs/branches contain no '|', so it's a
+# safe sed delimiter).
+upsert_lab_env() {
+  local key="$1" val="$2" file="$3"
+  if grep -q "^${key}=" "${file}" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${val}|" "${file}"
+  else
+    printf '%s=%s\n' "${key}" "${val}" >> "${file}"
+  fi
+}
+
+WIRED=true
+if [ -z "${ARGOCD_REPO_URL:-}" ]; then
+  upsert_lab_env ARGOCD_REPO_URL "${CLUSTER_URL}" "${LAB_ENV_FILE}"
+  upsert_lab_env ARGOCD_TARGET_REVISION "${BRANCH}" "${LAB_ENV_FILE}"
+  ok "Wrote ARGOCD_REPO_URL / ARGOCD_TARGET_REVISION to lab.env"
+elif printf '%s' "${ARGOCD_REPO_URL}" | grep -q "/${GITEA_ADMIN_USER}/${GITEA_REPO}\.git$"; then
+  # Already a Gitea URL (host.k3d.internal or host-IP variant) — leave the
+  # user's chosen variant alone, just make sure a revision is set.
+  ok "lab.env ARGOCD_REPO_URL already targets Gitea (${ARGOCD_REPO_URL})"
+  [ -z "${ARGOCD_TARGET_REVISION:-}" ] && upsert_lab_env ARGOCD_TARGET_REVISION "${BRANCH}" "${LAB_ENV_FILE}"
+else
+  WIRED=false
+  warn "ARGOCD_REPO_URL is set to a non-Gitea value in lab.env — leaving it as-is:"
+  warn "  ${ARGOCD_REPO_URL}"
+  warn "To use Gitea instead, set ARGOCD_REPO_URL=${CLUSTER_URL}"
+fi
 
 banner "Gitea ready"
 echo "  Web UI:  http://${LAB_HOST_IP}:${GITEA_HTTP_PORT}/   (login: ${GITEA_ADMIN_USER})"
 echo ""
-echo "  Point Argo CD at Gitea — set these in lab.env, then re-bootstrap:"
-echo ""
-echo "    ARGOCD_REPO_URL=${CLUSTER_URL}"
-echo "    ARGOCD_TARGET_REVISION=${BRANCH}"
-echo ""
-echo "    task argocd:bootstrap && task argocd:wait"
+if [ "${WIRED}" = true ]; then
+  echo "  Argo CD source (in lab.env):"
+  echo "    ARGOCD_REPO_URL=${ARGOCD_REPO_URL:-${CLUSTER_URL}}"
+  echo "    ARGOCD_TARGET_REVISION=${ARGOCD_TARGET_REVISION:-${BRANCH}}"
+  echo ""
+  echo "  Apply it:  task argocd:bootstrap && task argocd:wait"
+else
+  echo "  Apply after updating lab.env:  task argocd:bootstrap && task argocd:wait"
+fi
 echo ""
 echo "  The repo is public, so no ARGOCD_REPO_PASSWORD is needed."
-echo ""
-echo "  If Argo can't reach host.k3d.internal, fall back to the host IP:"
+echo "  If Argo can't reach host.k3d.internal, use the host IP instead:"
 echo "    ARGOCD_REPO_URL=http://${LAB_HOST_IP}:${GITEA_HTTP_PORT}/${GITEA_ADMIN_USER}/${GITEA_REPO}.git"
 echo ""
 echo "  After future commits: task gitea:push && task argocd:sync"

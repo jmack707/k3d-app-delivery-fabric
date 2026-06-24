@@ -281,21 +281,18 @@ self-contained and air-gappable.
 task gitea:setup     # start Gitea, create the lab repo (public), push current branch
 ```
 
-It prints the exact lines to put in `lab.env`:
-
-```bash
-ARGOCD_REPO_URL=http://host.k3d.internal:3000/giteaadmin/cni-net-lab.git
-ARGOCD_TARGET_REVISION=<your branch>
-```
-
-Then re-point Argo CD at it:
+It also **writes `ARGOCD_REPO_URL` / `ARGOCD_TARGET_REVISION` into `lab.env`** for
+you (unless you've set `ARGOCD_REPO_URL` to a non-Gitea value, which it leaves
+alone). Then point Argo CD at it:
 
 ```bash
 task argocd:bootstrap && task argocd:wait
 ```
 
-The repo is created **public**, so Argo needs no credential. Day-to-day GitOps
-loop once it's wired up:
+Even if `lab.env` is later recreated blank, the bootstrap **auto-detects** a
+running Gitea and uses it before falling back to the git `origin` remote — so the
+GitOps source can't silently drop to a private GitHub remote. The Gitea repo is
+**public**, so Argo needs no credential. Day-to-day GitOps loop once it's wired up:
 
 ```bash
 # edit manifests → commit → publish to Gitea → let Argo reconcile
