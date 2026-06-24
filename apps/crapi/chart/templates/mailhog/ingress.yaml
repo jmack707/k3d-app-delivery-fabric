@@ -19,7 +19,7 @@ spec:
   selector:
     {{- toYaml .Values.mailhog.serviceSelectorLabels | nindent 4 }}
   sessionAffinity: None
-  # Lab override (cni-net-lab): default LoadBalancer never gets an IP here
+  # Lab override (k3d-app-delivery-fabric): default LoadBalancer never gets an IP here
   # (ServiceLB disabled), which leaves Argo CD stuck Progressing. MailHog is
   # reached via 'task crapi:mail', so the lab sets this to ClusterIP.
   type: {{ .Values.mailhog.webService.type | default "LoadBalancer" }}

@@ -63,6 +63,6 @@ cis:
 
 # ── kind: gateway (Gateway API / NGINX Gateway Fabric) ──────────────────────────
 gateway:
-  name: cni-net-lab-gw
+  name: k3d-app-delivery-fabric-gw
   namespace: default         # must already exist (Gateway is created here)
   className: nginx           # GatewayClass name

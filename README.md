@@ -1,4 +1,4 @@
-# cni-net-lab
+# k3d-app-delivery-fabric
 
 A self-contained, **GitOps-driven** Kubernetes lab built on [k3d](https://k3d.io).
 It runs a set of intentionally-vulnerable demo apps (crAPI, Juice Shop, DVGA,

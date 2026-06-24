@@ -33,7 +33,7 @@ blank and the bootstrap falls back to the git `origin`.
 
 ```bash
 # in lab.env
-ARGOCD_REPO_URL=http://host.k3d.internal:3000/giteaadmin/cni-net-lab.git
+ARGOCD_REPO_URL=http://host.k3d.internal:3000/giteaadmin/k3d-app-delivery-fabric.git
 ARGOCD_TARGET_REVISION=<your branch>
 ```
 ```bash
@@ -56,7 +56,7 @@ ARGOCD_REPO_PASSWORD=ghp_your_token
 
 ```bash
 kubectl -n argocd exec deploy/argocd-repo-server -- \
-  git ls-remote http://host.k3d.internal:3000/giteaadmin/cni-net-lab.git | head
+  git ls-remote http://host.k3d.internal:3000/giteaadmin/k3d-app-delivery-fabric.git | head
 ```
 
 Refs printed → reachable. If it hangs, see
@@ -165,7 +165,7 @@ the controller's **CRDs aren't installed** — that's the separate project's job
 **Symptom.**
 
 ```
-FATA Failed to create cluster 'cni-net-lab' because a cluster with that name already exists
+FATA Failed to create cluster 'k3d-app-delivery-fabric' because a cluster with that name already exists
 ```
 
 **Cause.** You ran `task cluster:only` (or `task cluster`) and then `task up`,
@@ -191,7 +191,7 @@ published on all interfaces (it is, by default) and the alias resolves.
 
 ```bash
 # lab.env
-ARGOCD_REPO_URL=http://<LAB_HOST_IP>:3000/giteaadmin/cni-net-lab.git
+ARGOCD_REPO_URL=http://<LAB_HOST_IP>:3000/giteaadmin/k3d-app-delivery-fabric.git
 ```
 ```bash
 task argocd:bootstrap

@@ -19,7 +19,7 @@ spec:
     nodePort: {{ .Values.web.service.sslNodePort }}
     {{- end }}
     name: nginx-ssl
-  # Lab override (cni-net-lab): web.service.type lets the lab switch crAPI
+  # Lab override (k3d-app-delivery-fabric): web.service.type lets the lab switch crAPI
   # between NodePort and ClusterIP. Upstream default stays LoadBalancer.
   type: {{ .Values.web.service.type | default "LoadBalancer" }}
   selector:

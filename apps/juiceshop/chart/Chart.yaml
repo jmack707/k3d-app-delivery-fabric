@@ -1,6 +1,6 @@
 apiVersion: v2
 name: juiceshop
-description: OWASP Juice Shop for cni-net-lab (Argo CD managed)
+description: OWASP Juice Shop for k3d-app-delivery-fabric (Argo CD managed)
 type: application
 version: 0.1.0
 appVersion: latest

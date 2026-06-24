@@ -19,7 +19,7 @@ openssl genrsa -out "${CA_KEY}" 4096 2>/dev/null
 openssl req -new -x509 -days 3650 \
   -key "${CA_KEY}" \
   -out "${CA_CERT}" \
-  -subj "/CN=cni-net-lab Root CA/O=cni-net-lab/C=US"
+  -subj "/CN=k3d-app-delivery-fabric Root CA/O=k3d-app-delivery-fabric/C=US"
 
 ok "Local CA created"
 echo ""
@@ -28,5 +28,5 @@ echo "  ${CA_KEY}"
 echo ""
 echo "  Install CA on your browser/OS to trust lab HTTPS endpoints."
 echo "  macOS: sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${CA_CERT}"
-echo "  Ubuntu: sudo cp ${CA_CERT} /usr/local/share/ca-certificates/cni-net-lab.crt && sudo update-ca-certificates"
+echo "  Ubuntu: sudo cp ${CA_CERT} /usr/local/share/ca-certificates/k3d-app-delivery-fabric.crt && sudo update-ca-certificates"
 echo ""

@@ -9,7 +9,7 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  description: cni-net-lab vulnerable demo workloads
+  description: k3d-app-delivery-fabric vulnerable demo workloads
   sourceRepos:
     - {{ .Values.global.repoURL | quote }}
   destinations:

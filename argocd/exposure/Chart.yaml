@@ -1,5 +1,5 @@
 apiVersion: v2
-name: cni-net-lab-exposure
+name: k3d-app-delivery-fabric-exposure
 description: >-
   North-south routing for the lab apps. Renders ingress/LB resources
   (NGINX Ingress, BIG-IP CIS VirtualServer, or Gateway API HTTPRoute) that point

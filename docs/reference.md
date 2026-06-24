@@ -15,7 +15,7 @@ exposed lives in Git (`argocd/lab-apps/`), not here.
 |---|---|---|---|
 | `LAB_HOST_IP` | — (required) | `task reset` | Your VM's primary IP; external clients reach apps here. |
 | `LAB_DOMAIN` | `lab.local` | re-sync | Base domain for app hostnames / TLS SANs. |
-| `CLUSTER_NAME` | `cni-net-lab` | `task reset` | k3d cluster name. |
+| `CLUSTER_NAME` | `k3d-app-delivery-fabric` | `task reset` | k3d cluster name. |
 | `CNI` | `cilium` | `task reset` | `cilium` or `calico` (installed post-cluster). |
 | `LAB_AGENTS` | `2` | `task reset` | k3d agent node count (server is always 1). |
 | `LAB_PROFILE` | `mixed` | re-bootstrap | Exposure scenario; selects `lab-apps/profiles/<name>.yaml`. |
@@ -26,10 +26,10 @@ exposed lives in Git (`argocd/lab-apps/`), not here.
 | `ARGOCD_TARGET_REVISION` | _(blank → branch)_ | re-bootstrap | Branch/tag/SHA Argo tracks; blank = current branch. |
 | `ARGOCD_WAIT_TIMEOUT` | `900` | n/a | Seconds `task argocd:wait` blocks for Healthy. |
 | `REGISTRY_PORT` | `5000` | restart registry | Host registry port. |
-| `REGISTRY_NAME` | `cni-lab-registry` | restart registry | Registry container name. |
+| `REGISTRY_NAME` | `k3d-app-delivery-fabric-registry` | restart registry | Registry container name. |
 | `GITEA_HTTP_PORT` | `3000` | restart Gitea | Gitea host port. |
-| `GITEA_NAME` | `cni-lab-gitea` | restart Gitea | Gitea container name. |
-| `GITEA_REPO` | `cni-net-lab` | re-setup | Repo name created in Gitea. |
+| `GITEA_NAME` | `k3d-app-delivery-fabric-gitea` | restart Gitea | Gitea container name. |
+| `GITEA_REPO` | `k3d-app-delivery-fabric` | re-setup | Repo name created in Gitea. |
 | `GITEA_ADMIN_USER` | `giteaadmin` | re-setup | Gitea admin username. |
 | `GITEA_IMAGE` | `gitea/gitea:1.22` | restart Gitea | Gitea image (commented by default). |
 
@@ -186,7 +186,7 @@ they're read live from the cluster by `health`/`test`.
 ## Repository layout
 
 ```
-cni-net-lab/
+k3d-app-delivery-fabric/
 ├── README.md                 entry point
 ├── docs/                     this documentation
 ├── Taskfile.yaml             task automation

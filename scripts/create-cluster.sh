@@ -7,7 +7,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-CLUSTER_NAME="${CLUSTER_NAME:-cni-net-lab}"
+CLUSTER_NAME="${CLUSTER_NAME:-k3d-app-delivery-fabric}"
 LAB_HOST_IP="${LAB_HOST_IP:?LAB_HOST_IP not set in lab.env}"
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
 

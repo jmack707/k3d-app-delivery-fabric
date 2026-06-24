@@ -8,7 +8,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
-REGISTRY_NAME="${REGISTRY_NAME:-cni-lab-registry}"
+REGISTRY_NAME="${REGISTRY_NAME:-k3d-app-delivery-fabric-registry}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -7,7 +7,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-NAME="${REGISTRY_NAME:-cni-lab-registry}"
+NAME="${REGISTRY_NAME:-k3d-app-delivery-fabric-registry}"
 
 echo ""
 warn "This will remove the registry container AND all cached image data."

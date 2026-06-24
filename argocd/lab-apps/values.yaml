@@ -11,7 +11,7 @@
 # lab.env). Keep httpNodePort / httpsNodePort within NODEPORT_RANGES in lab.env
 # (default covers 30080-30099 and 30440-30459).
 global:
-  repoURL: https://github.com/jmack707/cni-net-lab.git
+  repoURL: https://github.com/jmack707/k3d-app-delivery-fabric.git
   targetRevision: main
   labHostIp: ""
   labDomain: lab.local
@@ -21,7 +21,7 @@ global:
 
 # Argo CD install namespace and the AppProject these Applications belong to.
 argocdNamespace: argocd
-project: cni-net-lab
+project: k3d-app-delivery-fabric
 
 apps:
   crapi:

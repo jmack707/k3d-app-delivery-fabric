@@ -273,7 +273,7 @@ CA. Install `root_ca.crt` in your OS/browser to avoid warnings:
 
 ```bash
 # Ubuntu / Debian
-sudo cp root_ca.crt /usr/local/share/ca-certificates/cni-net-lab.crt
+sudo cp root_ca.crt /usr/local/share/ca-certificates/k3d-app-delivery-fabric.crt
 sudo update-ca-certificates
 
 # macOS

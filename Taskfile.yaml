@@ -2,7 +2,7 @@
 version: '3'
 
 vars:
-  CLUSTER_NAME: cni-net-lab
+  CLUSTER_NAME: k3d-app-delivery-fabric
 
 tasks:
 

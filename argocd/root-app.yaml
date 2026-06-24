@@ -7,7 +7,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cni-net-lab-root
+  name: k3d-app-delivery-fabric-root
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io

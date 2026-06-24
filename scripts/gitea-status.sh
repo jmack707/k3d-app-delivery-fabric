@@ -5,10 +5,10 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-NAME="${GITEA_NAME:-cni-lab-gitea}"
+NAME="${GITEA_NAME:-k3d-app-delivery-fabric-gitea}"
 PORT="${GITEA_HTTP_PORT:-3000}"
 GITEA_ADMIN_USER="${GITEA_ADMIN_USER:-giteaadmin}"
-GITEA_REPO="${GITEA_REPO:-cni-net-lab}"
+GITEA_REPO="${GITEA_REPO:-k3d-app-delivery-fabric}"
 BASE="http://127.0.0.1:${PORT}"
 
 banner "Gitea Status"

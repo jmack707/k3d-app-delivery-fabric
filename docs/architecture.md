@@ -1,6 +1,6 @@
 # Architecture
 
-This document explains how **cni-net-lab** is put together and the reasoning
+This document explains how **k3d-app-delivery-fabric** is put together and the reasoning
 behind the main design decisions. For commands see
 [operations.md](operations.md); for lookup tables see
 [reference.md](reference.md).
@@ -118,7 +118,7 @@ The entrypoint is a single **root Application** (`argocd/root-app.yaml`,
 rendered with your repo URL/revision at bootstrap). It points at the
 **`argocd/lab-apps`** Helm chart, which renders:
 
-- a **`cni-net-lab` AppProject** (permissive — it's a lab), and
+- a **`k3d-app-delivery-fabric` AppProject** (permissive — it's a lab), and
 - **one Argo `Application` per app**, plus
 - the **`exposure` Application** when `INGRESS_KIND != none`.
 
@@ -129,7 +129,7 @@ root-app.yaml  (applied by task argocd:bootstrap)
    │          global.ingressKind, + valueFiles: profiles/<LAB_PROFILE>.yaml
    ▼
 argocd/lab-apps/templates/applications.yaml
-   ├─ AppProject  cni-net-lab
+   ├─ AppProject  k3d-app-delivery-fabric
    ├─ Application crapi      → apps/crapi/chart      (+ apps/crapi/values.yaml via $values)
    ├─ Application juiceshop  → apps/juiceshop/chart  (helm params: serviceType, tls, ports, host)
    ├─ Application dvga       → apps/dvga/chart

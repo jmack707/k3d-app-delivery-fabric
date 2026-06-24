@@ -21,10 +21,10 @@ ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ARGOCD_REPO_URL="${ARGOCD_REPO_URL:-}"
 
 if [ -z "${ARGOCD_REPO_URL}" ]; then
-  _gitea_name="${GITEA_NAME:-cni-lab-gitea}"
+  _gitea_name="${GITEA_NAME:-k3d-app-delivery-fabric-gitea}"
   _gitea_port="${GITEA_HTTP_PORT:-3000}"
   _gitea_user="${GITEA_ADMIN_USER:-giteaadmin}"
-  _gitea_repo="${GITEA_REPO:-cni-net-lab}"
+  _gitea_repo="${GITEA_REPO:-k3d-app-delivery-fabric}"
   if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "${_gitea_name}" \
      && curl -sf "http://127.0.0.1:${_gitea_port}/api/v1/repos/${_gitea_user}/${_gitea_repo}" >/dev/null 2>&1; then
     ARGOCD_REPO_URL="http://host.k3d.internal:${_gitea_port}/${_gitea_user}/${_gitea_repo}.git"
@@ -37,7 +37,7 @@ if [ -z "${ARGOCD_REPO_URL}" ]; then
 fi
 if [ -z "${ARGOCD_REPO_URL}" ]; then
   err "Could not determine repo URL. Set ARGOCD_REPO_URL in lab.env."
-  err "  e.g. ARGOCD_REPO_URL=https://github.com/<you>/cni-net-lab.git"
+  err "  e.g. ARGOCD_REPO_URL=https://github.com/<you>/k3d-app-delivery-fabric.git"
   exit 1
 fi
 
@@ -94,7 +94,7 @@ if [ -n "${ARGOCD_REPO_PASSWORD}" ] && [[ "${ARGOCD_REPO_URL}" != http://* ]]; t
 apiVersion: v1
 kind: Secret
 metadata:
-  name: repo-cni-net-lab
+  name: repo-k3d-app-delivery-fabric
   namespace: ${ARGOCD_NAMESPACE}
   labels:
     argocd.argoproj.io/secret-type: repository
@@ -108,7 +108,7 @@ SECRET
 else
   # No credential needed (public repo). Remove any stale credential Secret so it
   # can't shadow a now-public or changed repo URL with wrong/old creds.
-  kubectl delete secret repo-cni-net-lab -n "${ARGOCD_NAMESPACE}" --ignore-not-found >/dev/null 2>&1 || true
+  kubectl delete secret repo-k3d-app-delivery-fabric -n "${ARGOCD_NAMESPACE}" --ignore-not-found >/dev/null 2>&1 || true
   if [ -n "${ARGOCD_REPO_PASSWORD}" ]; then
     info "Repo URL is http:// — treating as public; skipping credential registration"
   elif [[ "${ARGOCD_REPO_URL}" == https://* ]]; then

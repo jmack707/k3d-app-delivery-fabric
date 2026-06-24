@@ -11,12 +11,12 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-GITEA_NAME="${GITEA_NAME:-cni-lab-gitea}"
+GITEA_NAME="${GITEA_NAME:-k3d-app-delivery-fabric-gitea}"
 GITEA_HTTP_PORT="${GITEA_HTTP_PORT:-3000}"
 GITEA_IMAGE="${GITEA_IMAGE:-gitea/gitea:1.22}"
 GITEA_ADMIN_USER="${GITEA_ADMIN_USER:-giteaadmin}"
 GITEA_ADMIN_PASSWORD="${GITEA_ADMIN_PASSWORD:-gitea-admin-lab}"
-GITEA_REPO="${GITEA_REPO:-cni-net-lab}"
+GITEA_REPO="${GITEA_REPO:-k3d-app-delivery-fabric}"
 BASE="http://127.0.0.1:${GITEA_HTTP_PORT}"
 
 banner "Gitea Setup"

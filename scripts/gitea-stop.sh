@@ -6,7 +6,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-NAME="${GITEA_NAME:-cni-lab-gitea}"
+NAME="${GITEA_NAME:-k3d-app-delivery-fabric-gitea}"
 
 if docker ps --format '{{.Names}}' | grep -q "^${NAME}$"; then
   docker stop "${NAME}"

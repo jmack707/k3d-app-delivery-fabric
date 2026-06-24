@@ -1,7 +1,7 @@
 apiVersion: v2
-name: cni-net-lab-apps
+name: k3d-app-delivery-fabric-apps
 description: >-
-  App-of-apps chart that registers each cni-net-lab workload as an Argo CD
-  Application. Synced by the cni-net-lab-root Application.
+  App-of-apps chart that registers each k3d-app-delivery-fabric workload as an Argo CD
+  Application. Synced by the k3d-app-delivery-fabric-root Application.
 type: application
 version: 0.1.0
