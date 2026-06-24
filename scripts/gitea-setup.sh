@@ -19,6 +19,8 @@ GITEA_ADMIN_PASSWORD="${GITEA_ADMIN_PASSWORD:-gitea-admin-lab}"
 GITEA_REPO="${GITEA_REPO:-k3d-app-delivery-fabric}"
 BASE="http://127.0.0.1:${GITEA_HTTP_PORT}"
 
+validate_gitea_admin_user
+
 banner "Gitea Setup"
 
 if [ "${GITEA_ADMIN_PASSWORD}" = "gitea-admin-lab" ]; then

@@ -13,6 +13,8 @@ GITEA_ADMIN_USER="${GITEA_ADMIN_USER:-giteaadmin}"
 GITEA_ADMIN_PASSWORD="${GITEA_ADMIN_PASSWORD:-gitea-admin-lab}"
 GITEA_REPO="${GITEA_REPO:-k3d-app-delivery-fabric}"
 
+validate_gitea_admin_user
+
 if ! docker ps --format '{{.Names}}' | grep -q "^${GITEA_NAME}$"; then
   err "Gitea is not running. Start it with: task gitea:setup"
   exit 1
