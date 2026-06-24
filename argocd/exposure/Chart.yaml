@@ -1,0 +1,8 @@
+apiVersion: v2
+name: k3d-app-delivery-fabric-exposure
+description: >-
+  North-south routing for the lab apps. Renders ingress/LB resources
+  (NGINX Ingress, BIG-IP CIS VirtualServer, or Gateway API HTTPRoute) that point
+  at the apps' existing Services. The app charts are left untouched (NodePort).
+type: application
+version: 0.1.0

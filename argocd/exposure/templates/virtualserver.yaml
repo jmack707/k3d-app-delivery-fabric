@@ -1,0 +1,34 @@
+{{- if eq .Values.kind "cis" }}
+{{- $root := . -}}
+{{- range $name, $app := .Values.apps }}
+{{- if $app.enabled }}
+---
+# F5 BIG-IP CIS VirtualServer — requires the CIS CRDs + Container Ingress
+# Services controller running and a BIG-IP. Points at the app's existing
+# (NodePort/ClusterIP) Service; CIS discovers pods via its EndpointSlices.
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  name: {{ $name }}
+  namespace: {{ $app.namespace }}
+  labels:
+    f5cr: "true"
+spec:
+  host: {{ $app.host | default (printf "%s.%s" $name $root.Values.labDomain) | quote }}
+  {{- if $root.Values.cis.virtualServerAddress }}
+  virtualServerAddress: {{ $root.Values.cis.virtualServerAddress | quote }}
+  {{- end }}
+  {{- if $root.Values.cis.ipamLabel }}
+  ipamLabel: {{ $root.Values.cis.ipamLabel | quote }}
+  {{- end }}
+  {{- if $root.Values.cis.tlsProfileName }}
+  tlsProfileName: {{ $root.Values.cis.tlsProfileName | quote }}
+  httpTraffic: redirect
+  {{- end }}
+  pools:
+    - path: /
+      service: {{ $app.serviceName }}
+      servicePort: {{ $app.servicePort }}
+{{- end }}
+{{- end }}
+{{- end }}

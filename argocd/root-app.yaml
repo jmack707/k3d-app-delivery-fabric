@@ -1,0 +1,46 @@
+# argocd/root-app.yaml
+#
+# The single "app of apps" entrypoint. scripts/argocd-bootstrap.sh renders the
+# ${...} placeholders from your git remote and lab.env, then kubectl-applies it.
+# Argo CD then syncs argocd/lab-apps, which creates the AppProject and one
+# Application per workload.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k3d-app-delivery-fabric-root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: ${ARGOCD_REPO_URL}
+    targetRevision: ${ARGOCD_TARGET_REVISION}
+    path: argocd/lab-apps
+    helm:
+      # Exposure scenario (NodePort/ClusterIP × HTTP/HTTPS). LAB_PROFILE in
+      # lab.env selects argocd/lab-apps/profiles/<profile>.yaml, layered over
+      # values.yaml. Options: mixed | nodeport-http | nodeport-https |
+      # clusterip-http | clusterip-https.
+      valueFiles:
+        - profiles/${LAB_PROFILE}.yaml
+      parameters:
+        - name: global.repoURL
+          value: ${ARGOCD_REPO_URL}
+        - name: global.targetRevision
+          value: ${ARGOCD_TARGET_REVISION}
+        - name: global.labHostIp
+          value: ${LAB_HOST_IP}
+        - name: global.labDomain
+          value: ${LAB_DOMAIN}
+        - name: global.ingressKind
+          value: ${INGRESS_KIND}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

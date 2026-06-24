@@ -6,7 +6,7 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
-NAME="${REGISTRY_NAME:-cni-lab-registry}"
+NAME="${REGISTRY_NAME:-k3d-app-delivery-fabric-registry}"
 
 if docker ps --format '{{.Names}}' | grep -q "^${NAME}$"; then
   docker stop "${NAME}"

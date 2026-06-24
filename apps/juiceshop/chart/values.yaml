@@ -1,0 +1,51 @@
+# apps/juiceshop/chart/values.yaml
+#
+# Defaults let `helm template apps/juiceshop/chart` render standalone.
+# At deploy time, Argo CD overrides service.type / nodePorts / tls.enabled /
+# labHostIp / labDomain / host from argocd/lab-apps (see that chart's values).
+name: juice-shop
+image: bkimminich/juice-shop:latest
+imagePullPolicy: IfNotPresent
+containerPort: 3000
+replicas: 1
+
+service:
+  type: NodePort
+  httpNodePort: 30081
+  httpsNodePort: 30444
+
+# TLS is terminated by an nginx sidecar using a cert-manager-issued secret
+# (<name>-tls). Enabled only when tls.enabled is true (set per profile/values).
+tls:
+  enabled: true
+
+# cert-manager issuer that signs the sidecar certificate.
+certIssuer:
+  name: local-ca
+  kind: ClusterIssuer
+
+# Injected by Argo CD for the certificate SANs.
+labHostIp: ""
+labDomain: lab.local
+host: ""
+
+# Extra container env vars (list of {name,value}).
+env: []
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+tlsSidecar:
+  image: nginx:1.27-alpine
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "20m"
+    limits:
+      memory: "64Mi"
+      cpu: "100m"

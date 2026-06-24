@@ -1,0 +1,16 @@
+# argocd/lab-apps/profiles/clusterip-http.yaml
+# All apps as ClusterIP, plain HTTP — not reachable on the host. Use this when
+# prepping every app to sit behind an in-cluster ingress (BIG-IP CIS / NGINX).
+# Reach one for testing with: kubectl port-forward -n <ns> svc/<svc> ...
+apps:
+  crapi:
+    serviceType: ClusterIP
+  juiceshop:
+    serviceType: ClusterIP
+    tls: false
+  dvga:
+    serviceType: ClusterIP
+    tls: false
+  vampi:
+    serviceType: ClusterIP
+    tls: false

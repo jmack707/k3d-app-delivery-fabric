@@ -1,0 +1,14 @@
+# argocd/lab-apps/profiles/nodeport-http.yaml
+# All apps exposed on the host as NodePort, plain HTTP only.
+apps:
+  crapi:
+    serviceType: NodePort
+  juiceshop:
+    serviceType: NodePort
+    tls: false
+  dvga:
+    serviceType: NodePort
+    tls: false
+  vampi:
+    serviceType: NodePort
+    tls: false

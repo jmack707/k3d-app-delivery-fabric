@@ -1,226 +1,197 @@
-# cni-net-lab
+# k3d-app-delivery-fabric
 
-A standalone Kubernetes CNI/network testing lab built on k3d. No ingress controller — direct NodePort access only. Designed for CNI comparison (Calico vs Cilium), network policy testing, and BIG-IP/NGINX integration work later.
+A self-contained, **GitOps-driven** Kubernetes lab built on [k3d](https://k3d.io).
+It runs a set of intentionally-vulnerable demo apps (crAPI, Juice Shop, DVGA,
+VAmPI) on a cluster with **no ingress controller, no LoadBalancer, and a CNI of
+your choice** — purpose-built for CNI comparison (Calico vs Cilium), network-policy
+testing, and as a stable backend for ingress / load-balancer integration work
+done in a **separate** project.
+
+The cluster's desired state lives in Git. [Argo CD](https://argo-cd.readthedocs.io)
+reconciles it. You change YAML and push — you don't `kubectl apply` apps by hand.
+
+> ⚠️ The demo apps are **deliberately vulnerable**. Run this on an isolated lab
+> network, never on anything reachable from the internet.
+
+---
 
 ## What you get
 
-- A k3d cluster with **no Klipper LB**, **no Traefik**, no default CNI
-- Your choice of **Calico** or **Cilium** installed post-cluster
-- Up to four intentionally vulnerable demo apps reachable via **NodePort** on `LAB_HOST_IP`
-- Per-app **HTTP or HTTPS** — listed in `HTTPS_APPS`, rest get plain HTTP
-- A **Docker registry v2** container running independently on the host — not coupled to the cluster lifecycle
-- Individual `task <app>:up` / `task <app>:down` for each app
+- A **k3d** cluster with no Klipper ServiceLB, no Traefik, and no default CNI.
+- Your choice of **Cilium** (default) or **Calico**, installed post-cluster.
+- **Argo CD** managing every app via an app-of-apps, reconciled from Git.
+- **Self-hosted Gitea** (optional) as Argo's source of truth — no GitHub
+  dependency, fully air-gappable. (GitHub also works.)
+- A host-side **Docker registry** for fast, offline image pulls.
+- One-switch **exposure profiles** (NodePort/ClusterIP × HTTP/HTTPS) and an
+  optional **routing layer** that emits `Ingress` / F5 `VirtualServer` /
+  Gateway API `HTTPRoute` manifests for an externally-managed controller.
 
-## Component lifecycle
+---
 
-The three components are intentionally independent:
+## Architecture at a glance
 
 ```
-Registry ──── long-lived host container, started once, never torn down with the cluster
-CA       ──── files on disk (root_ca.crt / root_ca.key), created once
-Cluster  ──── ephemeral, task up / task down / task reset as needed
+   HOST (long-lived)        ┌─ registry ──┐  ┌─ local CA ─┐  ┌─ Gitea (Git repo) ─┐
+                            └──────┬──────┘  └─────┬──────┘  └─────────┬──────────┘
+                                   │ images        │ certs             │ Argo clones
+   ─────────────────────────────────────────────────────────────────────────────
+   BOOTSTRAP (task up)   ca:init → k3d cluster → CNI → cert-manager → Argo CD
+   ─────────────────────────────────────────────────────────────────────────────
+   GITOPS (Argo CD)      root app ─▶ app-of-apps ─▶ crapi · juiceshop · dvga · vampi
+                                                  └▶ exposure (optional routing)
 ```
 
-`task down` and `task reset` never touch the registry or CA.
+Everything above the lines is bootstrapped **imperatively** (it must exist before
+GitOps can run). Everything below is **declarative** — Argo CD watches Git and
+makes the cluster match. Full detail in
+[docs/architecture.md](docs/architecture.md).
+
+---
 
 ## Prerequisites
 
-All tools are installed by `sudo bash scripts/install-prereqs.sh` (Ubuntu 22.04 / 24.04).
+Ubuntu 22.04 / 24.04. `sudo bash scripts/install-prereqs.sh` (or `task install`)
+installs everything:
 
-| Tool | Purpose | Installed by script |
-|---|---|---|
-| Docker CE | Runs k3d nodes and the registry container | Yes |
-| kubectl | Cluster management | Yes |
-| k3d v5.7.4 | Kubernetes-in-Docker | Yes |
-| Helm | CNI and cert-manager installs | Yes |
-| Helmfile | Multi-chart orchestration (future use) | Yes |
-| helm-diff | Helmfile dependency | Yes |
-| Task | Taskfile automation | Yes |
-| curl, python3, openssl, envsubst | Script dependencies | Yes (via apt) |
+| Tool | Purpose |
+|---|---|
+| Docker CE | Runs k3d nodes, the registry, and Gitea |
+| kubectl | Cluster management |
+| k3d v5.7.4 | Kubernetes-in-Docker |
+| Helm | CNI, cert-manager, Argo CD, app charts |
+| Task | Taskfile automation |
+| jq, python3, apache2-utils, openssl, curl | Script dependencies |
 
-Run `task check` at any time to verify all tools are present.
+Run `task check` any time to verify tooling and that `lab.env` / `lab.secrets`
+exist.
+
+---
 
 ## Quick start
 
 ```bash
-# 1. Install prerequisites (once, requires sudo)
-sudo bash scripts/install-prereqs.sh
-# Log out and back in after this step (docker group membership)
+# 1. Install prerequisites (once; log out/in afterwards for the docker group)
+task install
 
-# 2. Copy and edit config
-cp lab.env.example lab.env          # set LAB_HOST_IP, CNI, LAB_APPS, HTTPS_APPS
-cp lab.secrets.example lab.secrets  # fill in credentials when needed
+# 2. Configure — set LAB_HOST_IP (your VM's IP) at minimum
+cp lab.env.example lab.env
+cp lab.secrets.example lab.secrets        # optional credentials
 
-# 3. Verify tools
-task check
-
-# 4. Start the registry (once — survives everything)
+# 3. Start the host registry (survives cluster rebuilds)
 task registry:setup
-task registry:cache    # optional: pre-pull all images while online
+task registry:cache                        # optional: pre-pull images
 
-# 5. Bring up the lab
+# 4. (Recommended) self-hosted Git as Argo's source
+task gitea:setup                           # creates the repo, wires lab.env for you
+
+# 5. Bring the lab up, then verify
 task up
-
-# 6. Verify
 task health
 task test
 ```
 
-For a cluster-only bring-up (no apps, pure network testing):
+`task up` is **idempotent** — re-run it any time to converge. To rebuild the
+cluster from scratch, use `task reset`.
+
+Cluster-only (pure network testing, no apps):
 
 ```bash
 task cluster:only
 ```
 
-## lab.env key settings
-
-| Variable | Default | Notes |
-|---|---|---|
-| `LAB_HOST_IP` | — | Your Ubuntu VM's IP. Run: `ip route get 1.1.1.1 \| grep -oP 'src \K[\d.]+'` |
-| `CNI` | `cilium` | `calico` or `cilium`. Change requires `task reset`. |
-| `LAB_AGENTS` | `2` | k3d agent count. Change requires `task reset`. |
-| `LAB_APPS` | all four | Space-separated: `crapi juiceshop dvga vampi` |
-| `HTTPS_APPS` | `"crapi juiceshop"` | Subset of `LAB_APPS`. Others get HTTP only. |
+---
 
 ## App endpoints
 
-| App | HTTP | HTTPS (if in HTTPS_APPS) |
+Defaults (NodePort on `LAB_HOST_IP`; a ClusterIP app is reachable only via
+port-forward):
+
+| App | HTTP | HTTPS (when its profile enables TLS) |
 |---|---|---|
 | crAPI | `http://LAB_HOST_IP:30080` | `https://LAB_HOST_IP:30443` |
 | Juice Shop | `http://LAB_HOST_IP:30081` | `https://LAB_HOST_IP:30444` |
 | DVGA | `http://LAB_HOST_IP:30082` | `https://LAB_HOST_IP:30445` |
 | VAmPI | `http://LAB_HOST_IP:30083` | `https://LAB_HOST_IP:30446` |
+| **Argo CD UI** | `http://LAB_HOST_IP:30090` | — (insecure HTTP, lab only) |
 
-All ports are configurable in `lab.env`. Changing them requires `task reset`.
+Argo CD login: `admin` / `task argocd:password`. Per-app ports live in
+`argocd/lab-apps/values.yaml` (not `lab.env`) and can change via GitOps as long
+as they stay within `NODEPORT_RANGES`.
 
-## Common tasks
+---
 
-```bash
-# Lab lifecycle
-task up                    # cluster + CNI + apps
-task cluster:only          # cluster + CNI only (no apps)
-task down                  # destroy cluster (registry and CA untouched)
-task reset                 # destroy + rebuild cluster
-task cluster:reset         # destroy + rebuild cluster only (no apps)
+## The GitOps loop
 
-# Health & tests
-task health                # verify cluster, CNI, and app pods
-task test                  # curl smoke tests against all NodePorts
-
-# Individual apps
-task crapi:up              # start crAPI only
-task crapi:down            # stop crAPI only
-task apps:up               # start all LAB_APPS
-task apps:down             # stop all LAB_APPS
-APP=dvga task apps:up      # start a single app by name
-
-# CNI
-task cni:status            # show CNI pod status
-task cni:hubble            # Hubble UI → http://localhost:12000 (Cilium only)
-
-# Registry (independent of cluster)
-task registry:setup        # start registry container (run once)
-task registry:status       # show container state and image count
-task registry:ls           # list all images and tags
-task registry:cache        # pull all lab images from internet → registry
-task registry:flush        # delete all registry images (with confirmation)
-task registry:stop         # stop registry container (preserves data volume)
-task registry:rm           # remove container + data volume (irreversible)
-```
-
-## Switching CNI
-
-Edit `lab.env`:
-```bash
-CNI=calico   # or cilium
-```
-Then:
-```bash
-task reset   # required — CNI is installed at cluster creation time
-```
-
-## Switching HTTP ↔ HTTPS per app
-
-Edit `lab.env`:
-```bash
-HTTPS_APPS="crapi"          # only crAPI gets TLS
-# HTTPS_APPS=""             # all HTTP, skip cert-manager entirely
-```
-Then restart just the affected app:
-```bash
-APP=crapi task apps:down
-APP=crapi task apps:up
-```
-Or for a full cert-manager re-sync: `task reset`.
-
-## Switching NodePort ↔ ClusterIP per app
-
-By default every app is exposed as a **NodePort** service, reachable at
-`LAB_HOST_IP:<port>`. To put an app behind an in-cluster ingress instead
-(BIG-IP CIS, NGINX Ingress), switch it to **ClusterIP** so it's only
-reachable inside the cluster:
+The core day-2 workflow — never `kubectl apply` apps directly:
 
 ```bash
-# In lab.env — apps listed here become ClusterIP, the rest stay NodePort
-CLUSTERIP_APPS="dvga vampi"
-# CLUSTERIP_APPS=""           # default: everything NodePort
+# edit YAML (an app chart, lab-apps values, or a profile) → commit → publish → reconcile
+git commit -am "tweak exposure"
+task gitea:push          # push to Argo's source of truth (Gitea)
+task argocd:sync         # nudge Argo (it auto-refreshes anyway)
+task argocd:apps         # watch SYNC / HEALTH
 ```
 
-Then restart the affected apps:
-```bash
-APP=dvga task apps:down && APP=dvga task apps:up
-```
-
-ClusterIP apps are **not** reachable on `LAB_HOST_IP`. To reach one for
-testing, port-forward it:
-```bash
-kubectl port-forward -n dvga svc/dvga 8082:5013
-# then browse http://localhost:8082
-```
-
-`task test`, `task health`, and `task apps:status` all detect ClusterIP
-apps and skip the host-reachability checks for them automatically.
-
-This works for crAPI too (its Helm chart's front-end service is switched
-via `--set crapiWeb.service.type=ClusterIP` under the hood).
-
-## Registry
-
-The registry is a plain Docker v2 container that runs on the host outside any cluster. It is bound to both `127.0.0.1:5000` and `LAB_HOST_IP:5000` so it's reachable from the host itself, from cluster nodes (via `host.k3d.internal`), and from other machines on the LAN.
-
-It is not started or stopped by `task up/down/reset`. Manage it separately:
+**Switch the whole lab's exposure** with one line in `lab.env`:
 
 ```bash
-task registry:setup    # create and start (idempotent)
-task registry:status   # quick health check
-task registry:stop     # pause without losing data
-task registry:rm       # full removal including data volume
+LAB_PROFILE=clusterip-http      # mixed | nodeport-http | nodeport-https | clusterip-http | clusterip-https
+# then: task argocd:bootstrap && task argocd:wait
 ```
 
-k3d nodes are pre-configured with registry mirrors pointing at
-`host.k3d.internal:5000`, so image pulls resolve to the local registry
-automatically when an image is present there.
+See [docs/operations.md](docs/operations.md) for changing a single app, adding
+/removing apps, and the routing layer.
 
-## TLS trust
+---
 
-When any app is in `HTTPS_APPS`, a local root CA (`root_ca.crt`) is created and used by cert-manager. Install it in your OS/browser to avoid TLS warnings:
+## Ingress / load balancer — out of scope (by design)
+
+This lab **does not install or run** an ingress controller or load balancer. It
+*can* emit the routing manifests for one:
 
 ```bash
-# macOS
-sudo security add-trusted-cert -d -r trustRoot \
-  -k /Library/Keychains/System.keychain root_ca.crt
-
-# Ubuntu / Debian
-sudo cp root_ca.crt /usr/local/share/ca-certificates/cni-net-lab.crt
-sudo update-ca-certificates
+INGRESS_KIND=nginx       # none | nginx | cis | gateway
+# then: task argocd:bootstrap && task argocd:wait
 ```
 
-## Adding an ingress controller later
+…which renders an `Ingress` / F5 `VirtualServer` / Gateway API `HTTPRoute` per
+app, pointing at the existing Services. **Installing and operating** NGINX
+Ingress, F5 BIG-IP CIS, or NGINX Gateway Fabric is the job of a **separate
+project** — those objects only carry traffic once that controller is present.
+Details in
+[docs/architecture.md](docs/architecture.md#the-exposure-layer-ingress_kind).
 
-The cluster has no ingress controller by design. When you're ready to add NGINX or BIG-IP CIS:
+---
 
-1. Install the controller into the cluster normally (Helm or kubectl)
-2. Update app Services from `NodePort` to `ClusterIP` if routing through ingress
-3. Add Ingress or VirtualServer resources per app
+## Configuration
 
-The NodePort bindings in `create-cluster.sh` can coexist with an LB/ingress — no cluster rebuild required for that change.
+`lab.env` holds **host/infra** settings only (IP, CNI, NodePort ranges, profile
+and routing selectors, registry/Gitea/Argo ports). **What deploys and how it's
+exposed lives entirely in Git** (`argocd/lab-apps/`), and `task health`/`test`
+read the live cluster — so there are no app lists to keep in sync. Credentials go
+in `lab.secrets` (gitignored). Full tables in
+[docs/reference.md](docs/reference.md).
+
+---
+
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | How it all fits: bootstrap vs GitOps, app-of-apps, Gitea source, profiles, exposure layer, NodePort ranges, the vendored crAPI chart. |
+| [docs/operations.md](docs/operations.md) | Day-2 runbook: lifecycle, the GitOps loop, switching profiles/exposure, adding apps, host services, TLS trust. |
+| [docs/reference.md](docs/reference.md) | Lookup tables: `lab.env`/`lab.secrets`, tasks, ports, profiles, `INGRESS_KIND`, app inventory, repo layout. |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Real failure modes and fixes. |
+
+---
+
+## Repository layout
+
+```
+apps/        per-app Helm charts (+ vendored crAPI chart)
+argocd/      root app-of-apps, lab-apps chart + profiles, exposure layer
+scripts/     bootstrap, lifecycle, registry/Gitea helpers, verification
+docs/        architecture · operations · reference · troubleshooting
+Taskfile.yaml · lab.env.example · lab.secrets.example
+```

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/install-prereqs.sh
-# Install all prerequisites for cni-net-lab on Ubuntu 22.04 / 24.04.
+# Install all prerequisites for k3d-app-delivery-fabric on Ubuntu 22.04 / 24.04.
 # Run once with sudo: sudo bash scripts/install-prereqs.sh
 #
 # Installs: Docker, kubectl, k3d, Helm, Helmfile, helm-diff, Task
@@ -24,7 +24,7 @@ header() { echo ""; echo "━━━  $*  ━━━━━━━━━━━━━
 header "System packages"
 apt-get update -qq
 apt-get install -y -qq \
-  curl wget git jq python3 \
+  curl wget git jq python3 apache2-utils \
   apt-transport-https ca-certificates gnupg lsb-release \
   iptables net-tools
 ok "System packages installed"
@@ -119,15 +119,15 @@ fi
 # ── kubectl shell completion & alias ─────────────────────────────────────────
 header "kubectl completion"
 BASHRC="${REAL_HOME}/.bashrc"
-MARKER="# >>> cni-net-lab kubectl completion >>>"
+MARKER="# >>> k3d-app-delivery-fabric kubectl completion >>>"
 if ! grep -qF "${MARKER}" "${BASHRC}" 2>/dev/null; then
   cat >> "${BASHRC}" << 'BASHRC_BLOCK'
 
-# >>> cni-net-lab kubectl completion >>>
+# >>> k3d-app-delivery-fabric kubectl completion >>>
 source <(kubectl completion bash)
 alias k=kubectl
 complete -o default -F __start_kubectl k
-# <<< cni-net-lab kubectl completion <<<
+# <<< k3d-app-delivery-fabric kubectl completion <<<
 BASHRC_BLOCK
   chown "${REAL_USER}:${REAL_USER}" "${BASHRC}"
   ok "kubectl completion + 'k' alias added to ${BASHRC}"

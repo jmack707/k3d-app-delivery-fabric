@@ -49,31 +49,34 @@ if [ "${CLUSTER_ONLY}" = "1" ]; then
   echo ""
   info "Cluster-only mode — skipping app and TLS checks"
   echo ""
-  echo "  Deploy apps later with:  task apps:up"
+  echo "  Deploy apps later with:  task argocd:install && task argocd:bootstrap"
   echo "  Full lab with apps:      task up"
 else
   echo ""
   echo "── Apps ─────────────────────────────────────────"
-  for app in ${LAB_APPS}; do
+  APPS="$(deployed_apps)"
+  [ -z "${APPS}" ] && warn "No Argo CD Applications found for known apps"
+  for app in ${APPS}; do
     ns=$(app_namespace "${app}")
     deploy=$(app_deploy_name "${app}")
-    port=$(app_http_port "${app}")
 
     check "${app}: namespace exists" \
       "kubectl get ns ${ns}"
     check "${app}: deployment rollout complete" \
       "kubectl rollout status deploy/${deploy} -n ${ns} --timeout=30s"
 
-    # NodePort reachability only applies to NodePort services.
+    # NodePort reachability only applies to NodePort services (read live).
     if [ "$(app_service_type "${app}")" = "ClusterIP" ]; then
       info "${app}: ClusterIP — host reachability check skipped"
     else
+      port=$(app_node_port "${app}" http)
       check "${app}: NodePort reachable (http://${LAB_HOST_IP}:${port})" \
         "curl -sf --max-time 10 http://${LAB_HOST_IP}:${port} -o /dev/null"
     fi
   done
 
-  if [ -n "${HTTPS_APPS}" ]; then
+  # cert-manager is installed by pre-deploy; verify it whenever it's present.
+  if kubectl get ns cert-manager &>/dev/null; then
     echo ""
     echo "── TLS / cert-manager ───────────────────────────"
     check "cert-manager deployment ready" \

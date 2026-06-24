@@ -58,6 +58,28 @@ rm -rf "${CHART_DIR}"
 mkdir -p "${CHART_DIR}"
 cp -r "${EXTRACTED}/deploy/helm/." "${CHART_DIR}/"
 
+# ── Re-apply lab customizations ───────────────────────────────────────────────
+# The vendored chart is overwritten above, so re-apply the lab's edits, which
+# parameterize the crapi-web and mailhog Service 'type' (apps/crapi/lab-chart.patch).
+# Without this, both default back to LoadBalancer — which never gets an IP here
+# (ServiceLB disabled) — leaving crAPI stuck "Progressing" in Argo CD and
+# breaking the clusterip-* profiles for crAPI.
+PATCH_FILE="${REPO_DIR}/apps/crapi/lab-chart.patch"
+if [ -f "${PATCH_FILE}" ]; then
+  if git -C "${REPO_DIR}" apply --check "${PATCH_FILE}" 2>/dev/null; then
+    git -C "${REPO_DIR}" apply "${PATCH_FILE}"
+    ok "Re-applied lab chart customizations (apps/crapi/lab-chart.patch)"
+  else
+    warn "lab-chart.patch did NOT apply — upstream changed these files:"
+    warn "  templates/web/ingress.yaml, templates/mailhog/ingress.yaml"
+    warn "Re-add the Service 'type' overrides by hand (web.service.type /"
+    warn "mailhog.webService.type), then regenerate the patch with:"
+    warn "  git diff -- apps/crapi/chart/templates/{web,mailhog}/ingress.yaml > apps/crapi/lab-chart.patch"
+  fi
+else
+  warn "No ${PATCH_FILE} found — skipping lab customization re-apply"
+fi
+
 # Record what we pulled
 cat > "${VERSION_FILE}" <<EOF
 # crAPI chart version pin — vendored from upstream
@@ -75,7 +97,8 @@ echo "    git status apps/crapi/"
 echo "    git diff apps/crapi/CHART_VERSION"
 echo "    git diff --stat apps/crapi/chart/"
 echo ""
-echo "  Then redeploy:"
-echo "    APP=crapi task apps:down"
-echo "    APP=crapi task apps:up"
+echo "  Then commit and push — Argo CD redeploys crAPI from git:"
+echo "    git add apps/crapi/ && git commit -m 'crapi: bump vendored chart'"
+echo "    git push"
+echo "    task argocd:sync     # optional: force an immediate refresh"
 echo ""

@@ -1,0 +1,36 @@
+{{- if eq .Values.kind "nginx" }}
+{{- $root := . -}}
+{{- range $name, $app := .Values.apps }}
+{{- if $app.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ $app.namespace }}
+  {{- with $root.Values.nginx.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $root.Values.nginx.ingressClassName }}
+  rules:
+    - host: {{ $app.host | default (printf "%s.%s" $name $root.Values.labDomain) | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $app.serviceName }}
+                port:
+                  number: {{ $app.servicePort }}
+  {{- if $app.tls }}
+  tls:
+    - hosts:
+        - {{ $app.host | default (printf "%s.%s" $name $root.Values.labDomain) | quote }}
+      secretName: {{ $app.tlsSecret | default (printf "%s-tls" $app.serviceName) }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
