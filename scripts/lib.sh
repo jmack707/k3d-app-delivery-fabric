@@ -167,6 +167,34 @@ load_lab_env() {
   # root app layers on). The app set and per-app exposure live entirely in Gitea;
   # 'task health'/'test' read the live cluster, so no app lists are needed here.
   export LAB_PROFILE="${LAB_PROFILE:-mixed}"
+
+  validate_lab_host_ip
+}
+
+# ── LAB_HOST_IP preflight ─────────────────────────────────────────────────────
+# Fail fast if LAB_HOST_IP isn't an address this host can actually bind. A stale
+# or mistyped value (new DHCP lease, fat-fingered octet) otherwise surfaces as a
+# cryptic "cannot assign requested address" from docker/k3d deep into setup.
+validate_lab_host_ip() {
+  local ip="${LAB_HOST_IP:-}"
+  case "${ip}" in
+    ""|0.0.0.0|127.0.0.1|localhost) return 0 ;;   # wildcard/loopback/unset: nothing to check
+  esac
+  [[ "${ip}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 0   # only validate IPv4 literals
+
+  local have
+  if command -v ip >/dev/null 2>&1; then
+    have="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1)"
+  else
+    have="$(hostname -I 2>/dev/null | tr ' ' '\n')"
+  fi
+
+  if ! printf '%s\n' "${have}" | grep -qx "${ip}"; then
+    err "LAB_HOST_IP=${ip} is not assigned to any interface on this host."
+    err "Current global IPv4 address(es): ${have//$'\n'/ }"
+    err "Update LAB_HOST_IP in lab.env to one of them, then re-run."
+    exit 1
+  fi
 }
 
 # ── Bootstrap ─────────────────────────────────────────────────────────────────
