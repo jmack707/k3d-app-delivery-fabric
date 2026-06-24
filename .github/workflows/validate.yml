@@ -1,0 +1,118 @@
+name: validate
+
+# Static validation for the GitOps lab. No cluster is created — this renders
+# charts, checks shell scripts, parses YAML, and guards the vendored crAPI chart
+# against patch drift, so chart/script regressions are caught before merge.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: bash -n (syntax)
+        run: |
+          fail=0
+          for f in scripts/*.sh; do
+            bash -n "$f" || { echo "::error file=$f::bash syntax error"; fail=1; }
+          done
+          exit $fail
+      - name: shellcheck (errors only)
+        # -S error keeps the gate to genuine bugs, not style nits, so existing
+        # scripts don't turn the build red on warnings.
+        run: shellcheck -S error scripts/*.sh
+
+  helm:
+    name: helm charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - name: Lint all charts
+        run: |
+          for c in apps/crapi/chart apps/dvga/chart apps/juiceshop/chart \
+                   apps/vampi/chart argocd/lab-apps argocd/exposure; do
+            echo "── helm lint $c"
+            helm lint "$c"
+          done
+      - name: Template per-app charts
+        run: |
+          helm template crapi apps/crapi/chart -f apps/crapi/values.yaml >/dev/null
+          for a in dvga juiceshop vampi; do
+            echo "── helm template $a"
+            helm template "$a" "apps/$a/chart" >/dev/null
+          done
+      - name: Template app-of-apps across all profiles
+        run: |
+          for p in argocd/lab-apps/profiles/*.yaml; do
+            echo "── helm template lab-apps -f $p"
+            helm template lab-apps argocd/lab-apps -f "$p" >/dev/null
+          done
+      - name: Template exposure layer across all kinds
+        run: |
+          for k in none nginx cis gateway; do
+            echo "── helm template exposure (kind=$k)"
+            helm template exposure argocd/exposure \
+              --set kind="$k" \
+              --set cis.virtualServerAddress=192.0.2.10 >/dev/null
+          done
+
+  yaml:
+    name: yaml parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse static YAML manifests
+        run: |
+          python3 - <<'PY'
+          import glob, sys, yaml
+          # Argo manifests + profiles + chart values are plain YAML (no Helm
+          # templating), so they must parse cleanly on their own.
+          patterns = [
+              "argocd/*.yaml",
+              "argocd/lab-apps/values.yaml",
+              "argocd/lab-apps/profiles/*.yaml",
+              "argocd/exposure/values.yaml",
+          ]
+          files = sorted({f for p in patterns for f in glob.glob(p)})
+          bad = 0
+          for f in files:
+              try:
+                  list(yaml.safe_load_all(open(f)))
+                  print(f"ok  {f}")
+              except yaml.YAMLError as e:
+                  print(f"ERR {f}: {e}")
+                  bad = 1
+          sys.exit(bad)
+          PY
+
+  crapi-patch:
+    name: crapi patch drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify lab-chart.patch matches the vendored chart
+        # The lab's crAPI Service-type edits live in apps/crapi/lab-chart.patch
+        # and are re-applied after re-vendoring upstream. If someone edits the
+        # vendored chart directly without updating the patch, the patch no longer
+        # reverse-applies — catch that here so the edit can't silently drift.
+        run: |
+          if git apply --check --reverse apps/crapi/lab-chart.patch; then
+            echo "lab-chart.patch is in sync with the vendored chart ✔"
+          else
+            echo "::error::apps/crapi/lab-chart.patch no longer matches apps/crapi/chart."
+            echo "Re-capture it (see scripts/crapi-chart-update.sh) after editing the chart."
+            exit 1
+          fi
