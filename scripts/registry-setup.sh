@@ -31,6 +31,27 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${REGISTRY_NAME}$"; then
   docker rm "${REGISTRY_NAME}"
 fi
 
+# Port still held by a *different* container — this is what bit the rename
+# cold-boot: the old project's registry (e.g. cni-lab-registry) kept :5000, so
+# 'docker run' failed with "port is already allocated". If the holder is a
+# previous lab registry, reclaim the port; if it's something unrelated, stop and
+# say so rather than clobbering it.
+port_holder="$(docker ps -a --filter "publish=${REGISTRY_PORT}" --format '{{.Names}}' \
+  | grep -v "^${REGISTRY_NAME}$" | head -1)"
+if [ -n "${port_holder}" ]; then
+  case "${port_holder}" in
+    *-registry|registry)
+      warn "Port ${REGISTRY_PORT} held by a previous lab registry '${port_holder}' — removing it"
+      docker rm -f "${port_holder}"
+      ;;
+    *)
+      err "Port ${REGISTRY_PORT} is already in use by container '${port_holder}' (not a lab registry)."
+      err "Free it, or set REGISTRY_PORT to an open port, then re-run 'task registry:setup'."
+      exit 1
+      ;;
+  esac
+fi
+
 info "Starting registry container..."
 docker run -d \
   --name "${REGISTRY_NAME}" \
