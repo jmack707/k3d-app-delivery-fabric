@@ -36,8 +36,11 @@ fi
 # 'docker run' failed with "port is already allocated". If the holder is a
 # previous lab registry, reclaim the port; if it's something unrelated, stop and
 # say so rather than clobbering it.
+# `|| true`: on a fresh host nothing publishes the port, so grep -v matches no
+# lines and exits non-zero — under `set -euo pipefail` that bare assignment would
+# otherwise abort the script before the registry is ever started.
 port_holder="$(docker ps -a --filter "publish=${REGISTRY_PORT}" --format '{{.Names}}' \
-  | grep -v "^${REGISTRY_NAME}$" | head -1)"
+  | grep -v "^${REGISTRY_NAME}$" | head -1 || true)"
 if [ -n "${port_holder}" ]; then
   case "${port_holder}" in
     *-registry|registry)
