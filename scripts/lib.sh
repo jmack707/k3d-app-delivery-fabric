@@ -197,6 +197,23 @@ validate_lab_host_ip() {
   fi
 }
 
+# ── Gitea admin-user preflight ────────────────────────────────────────────────
+# Gitea reserves a set of names for its own top-level routes (/admin, /api, ...).
+# "admin" is the common trap: creating it fails, repo create then 401s, and the
+# push hits a repo that never got made. Reject the reserved names up front with
+# the fix. Called only by the Gitea scripts, so non-Gitea workflows are unaffected.
+validate_gitea_admin_user() {
+  local user="${GITEA_ADMIN_USER:-giteaadmin}"
+  case "${user}" in
+    admin|api|assets|attachments|avatars|user|org|repo|explore|issues|pulls|\
+login|new|raw|help|install|ghost|milestones|notifications|stars|search)
+      err "GITEA_ADMIN_USER=${user} is reserved by Gitea and cannot be created."
+      err "Set GITEA_ADMIN_USER to something else (e.g. giteaadmin) in lab.env."
+      exit 1
+      ;;
+  esac
+}
+
 # ── Bootstrap ─────────────────────────────────────────────────────────────────
 # Standard preamble for scripts: resolve dirs and load config in one call.
 # Sets SCRIPT_DIR and REPO_DIR in the caller's scope.
