@@ -168,7 +168,39 @@ load_lab_env() {
   # 'task health'/'test' read the live cluster, so no app lists are needed here.
   export LAB_PROFILE="${LAB_PROFILE:-mixed}"
 
+  # Network mode: bridge (default) or ipvlan (nodes directly on the LAN).
+  export LAB_NET_MODE="${LAB_NET_MODE:-bridge}"
+
   validate_lab_host_ip
+}
+
+# ── Network-mode address helpers ──────────────────────────────────────────────
+# cluster_host_addr — the address the CLUSTER (nodes/pods) uses to reach host-side
+# services (the local registry mirror, Gitea). On the default bridge that is k3d's
+# injected host.k3d.internal. Under ipvlan the parent NIC is isolated from its own
+# containers, so nodes reach the host via the shim IP instead.
+cluster_host_addr() {
+  if [ "${LAB_NET_MODE:-bridge}" = "ipvlan" ]; then
+    echo "${LAB_NET_SHIM_IP:-172.16.20.250}"
+  else
+    echo "host.k3d.internal"
+  fi
+}
+
+# app_access_host — the address the HOST uses to reach app NodePorts. Bridge
+# publishes them on LAB_HOST_IP; under ipvlan there is no host publish, so use a
+# live node IP (reachable via the shim route). Falls back to LAB_HOST_IP when the
+# cluster isn't up yet or no node IP can be read.
+app_access_host() {
+  if [ "${LAB_NET_MODE:-bridge}" = "ipvlan" ]; then
+    local nip
+    nip=$(kubectl get nodes \
+      -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' \
+      2>/dev/null)
+    echo "${nip:-${LAB_HOST_IP}}"
+  else
+    echo "${LAB_HOST_IP}"
+  fi
 }
 
 # ── LAB_HOST_IP preflight ─────────────────────────────────────────────────────
@@ -250,7 +282,7 @@ resolve_argocd_source() {
     local _gitea_repo="${GITEA_REPO:-k3d-app-delivery-fabric}"
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "${_gitea_name}" \
        && curl -sf "http://127.0.0.1:${_gitea_port}/api/v1/repos/${_gitea_user}/${_gitea_repo}" >/dev/null 2>&1; then
-      ARGOCD_REPO_URL="http://host.k3d.internal:${_gitea_port}/${_gitea_user}/${_gitea_repo}.git"
+      ARGOCD_REPO_URL="http://$(cluster_host_addr):${_gitea_port}/${_gitea_user}/${_gitea_repo}.git"
       ARGOCD_SOURCE_ORIGIN="auto-detected Gitea container"
     fi
   fi

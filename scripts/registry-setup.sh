@@ -56,11 +56,21 @@ if [ -n "${port_holder}" ]; then
 fi
 
 info "Starting registry container..."
+# Port bindings depend on the network mode. Under ipvlan the k3d nodes reach the
+# host via a shim IP that may not exist yet (it's created during 'task up'), so
+# bind all interfaces rather than a specific address that docker can't yet assign.
+if [ "${LAB_NET_MODE:-bridge}" = "ipvlan" ]; then
+  REG_PORTS=(-p "${REGISTRY_PORT}:5000")
+else
+  REG_PORTS=(
+    -p "127.0.0.1:${REGISTRY_PORT}:5000"
+    -p "${LAB_HOST_IP}:${REGISTRY_PORT}:5000"
+  )
+fi
 docker run -d \
   --name "${REGISTRY_NAME}" \
   --restart always \
-  -p "127.0.0.1:${REGISTRY_PORT}:5000" \
-  -p "${LAB_HOST_IP}:${REGISTRY_PORT}:5000" \
+  "${REG_PORTS[@]}" \
   -v "${REGISTRY_NAME}-data:/var/lib/registry" \
   -e REGISTRY_STORAGE_DELETE_ENABLED=true \
   registry:2

@@ -6,7 +6,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
 echo ""
-echo "  Argo CD UI → http://${LAB_HOST_IP}:${ARGOCD_HTTP_PORT:-30090}"
+echo "  Argo CD UI → http://$(app_access_host):${ARGOCD_HTTP_PORT:-30090}"
 echo "  Username:   admin"
 echo "  Password:   task argocd:password"
 echo ""

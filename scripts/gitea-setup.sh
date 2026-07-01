@@ -96,7 +96,7 @@ esac
 bash "${SCRIPT_DIR}/gitea-push.sh"
 
 # ── Point Argo CD at Gitea (persist into lab.env) ─────────────────────────────
-CLUSTER_URL="http://host.k3d.internal:${GITEA_HTTP_PORT}/${GITEA_ADMIN_USER}/${GITEA_REPO}.git"
+CLUSTER_URL="http://$(cluster_host_addr):${GITEA_HTTP_PORT}/${GITEA_ADMIN_USER}/${GITEA_REPO}.git"
 BRANCH="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 LAB_ENV_FILE="${REPO_DIR}/lab.env"
 

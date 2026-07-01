@@ -252,3 +252,64 @@ task registry:cache     # pre-pull all lab images into the local registry
 ```
 
 k3d mirrors `host.k3d.internal:5000`, so cached images are used automatically.
+
+---
+
+## ipvlan mode — nodes on the LAN for an external load balancer
+
+Set `LAB_NET_MODE=ipvlan` in `lab.env` to put the k3d nodes **directly on your
+LAN** (from `LAB_NET_RANGE`) instead of a private Docker bridge, so an external
+device (e.g. F5 BIG-IP) reaches node NodePorts at L2 with no host route. Applying
+it requires a rebuild:
+
+```bash
+task down        # or task reset
+task up
+kubectl get nodes -o wide     # INTERNAL-IP should now be on LAB_NET_SUBNET
+```
+
+**How it works.** `create-cluster.sh` pre-creates an ipvlan-L2 Docker network on
+the NIC that holds `LAB_HOST_IP` (override with `LAB_NET_PARENT`), runs k3d with
+`--network … --no-lb`, and adds a **host shim** interface (`k3dshim0`,
+`LAB_NET_SHIM_IP`) so the host and node→host services (registry, Gitea) can reach
+the otherwise-isolated nodes. `task config` shows the resolved Gitea/registry
+address (the shim IP under ipvlan).
+
+**ipvlan (not macvlan)** so it needs **no promiscuous mode / MAC-spoofing** on the
+hypervisor. On Proxmox/KVM, still make sure the VM NIC's firewall **IP/MAC filter
+is off**, or the container IPs are dropped.
+
+**The shim is not reboot-persistent.** Re-running `task up` recreates it, or make
+it permanent (example for the `172.16.20.0/24` lab; adjust to your values):
+
+```bash
+# /etc/systemd/system/k3dshim0.service
+[Unit]
+After=network-online.target docker.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/ip link add k3dshim0 link eth0 type ipvlan mode l2
+ExecStart=/sbin/ip addr add 172.16.20.250/32 dev k3dshim0
+ExecStart=/sbin/ip link set k3dshim0 up
+ExecStart=/sbin/ip route replace 172.16.20.192/27 dev k3dshim0
+ExecStop=/sbin/ip link del k3dshim0
+[Install]
+WantedBy=multi-user.target
+```
+
+**BIG-IP pool members go green with no route.** CIS now advertises the nodes'
+LAN IPs (`172.16.20.x:NodePort`), directly reachable from the BIG-IP self-IP on
+the same subnet. The static route from the bridge workaround is no longer needed —
+delete it.
+
+**Symptom: `kubectl` can't reach the API after switching.** On ipvlan the API
+port isn't published to the host; `create-cluster.sh` rewrites the kubeconfig to
+the server node's LAN IP (reached via the shim). If it still fails, confirm the
+shim is up (`ip addr show k3dshim0`) and the route exists
+(`ip route get <server-LAN-IP>`).
+
+**Revert to the default.** Set `LAB_NET_MODE=bridge`, `task reset`. The leftover
+ipvlan network and shim are harmless, but you can remove them:
+`docker network rm <cluster>-lan` and `sudo ip link del k3dshim0`.

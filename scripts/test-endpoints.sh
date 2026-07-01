@@ -8,7 +8,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 PASS=0
 FAIL=0
 
-banner "Endpoint Smoke Tests" "Host: ${LAB_HOST_IP}"
+# LAB_HOST_IP on bridge; a live node LAN IP under ipvlan (ports aren't host-published).
+APP_HOST="$(app_access_host)"
+
+banner "Endpoint Smoke Tests" "Host: ${APP_HOST}"
 echo ""
 
 # smoke <label> <url> [expected-codes]
@@ -37,7 +40,7 @@ for app in ${APPS}; do
 
   http_np=$(app_node_port "${app}" http)
   https_np=$(app_node_port "${app}" https)
-  http="http://${LAB_HOST_IP}:${http_np}"
+  http="http://${APP_HOST}:${http_np}"
 
   # Root HTTP endpoint
   smoke "${name} HTTP " "${http}/"
@@ -53,7 +56,7 @@ for app in ${APPS}; do
 
   # HTTPS endpoint, only when the Service actually publishes a TLS NodePort
   if [ -n "${https_np}" ]; then
-    smoke "${name} HTTPS" "https://${LAB_HOST_IP}:${https_np}/"
+    smoke "${name} HTTPS" "https://${APP_HOST}:${https_np}/"
   fi
 done
 

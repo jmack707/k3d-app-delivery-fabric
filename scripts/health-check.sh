@@ -8,6 +8,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"; lab_bootstrap
 
 CNI="${CNI:-cilium}"
 CLUSTER_ONLY="${CLUSTER_ONLY:-0}"
+# Host-facing address for NodePort checks: LAB_HOST_IP on bridge, a node LAN IP
+# under ipvlan (where ports aren't published on the host).
+APP_HOST="$(app_access_host)"
 PASS=0
 FAIL=0
 
@@ -70,8 +73,8 @@ else
       info "${app}: ClusterIP — host reachability check skipped"
     else
       port=$(app_node_port "${app}" http)
-      check "${app}: NodePort reachable (http://${LAB_HOST_IP}:${port})" \
-        "curl -sf --max-time 10 http://${LAB_HOST_IP}:${port} -o /dev/null"
+      check "${app}: NodePort reachable (http://${APP_HOST}:${port})" \
+        "curl -sf --max-time 10 http://${APP_HOST}:${port} -o /dev/null"
     fi
   done
 
