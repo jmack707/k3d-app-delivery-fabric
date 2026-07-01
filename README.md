@@ -176,6 +176,12 @@ read the live cluster — so there are no app lists to keep in sync. Credentials
 in `lab.secrets` (gitignored). Full tables in
 [docs/reference.md](docs/reference.md).
 
+Run **`task config`** to see the whole picture at a glance — your `lab.env`
+settings, the *resolved* GitOps source Argo CD will use (an empty
+`ARGOCD_REPO_URL` falls back to a running Gitea, then the git `origin`), and the
+*live* root Application it's actually reconciling — with a warning if the live
+source has drifted from `lab.env`.
+
 ---
 
 ## Documentation

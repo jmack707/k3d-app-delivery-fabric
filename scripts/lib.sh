@@ -225,6 +225,61 @@ lab_bootstrap() {
   load_lab_env "${REPO_DIR}/lab.env"
 }
 
+# ── Argo CD GitOps source resolution ──────────────────────────────────────────
+# Resolve which repo/revision Argo CD should reconcile from, so 'task config'
+# and 'task argocd:bootstrap' always agree (one implementation, no drift). Sets
+# and exports:
+#   ARGOCD_REPO_URL         the resolved repo URL ("" if it can't be determined)
+#   ARGOCD_TARGET_REVISION  the resolved branch/revision
+#   ARGOCD_SOURCE_ORIGIN    a human label for WHERE the URL came from
+# Priority (matches the original bootstrap logic):
+#   1. explicit ARGOCD_REPO_URL in lab.env
+#   2. a running self-hosted Gitea container serving the lab repo (no auth)
+#   3. the git 'origin' remote of this checkout
+# Requires REPO_DIR (set by lab_bootstrap).
+resolve_argocd_source() {
+  ARGOCD_REPO_URL="${ARGOCD_REPO_URL:-}"
+  ARGOCD_SOURCE_ORIGIN=""
+
+  if [ -n "${ARGOCD_REPO_URL}" ]; then
+    ARGOCD_SOURCE_ORIGIN="lab.env (ARGOCD_REPO_URL)"
+  else
+    local _gitea_name="${GITEA_NAME:-k3d-app-delivery-fabric-gitea}"
+    local _gitea_port="${GITEA_HTTP_PORT:-3000}"
+    local _gitea_user="${GITEA_ADMIN_USER:-giteaadmin}"
+    local _gitea_repo="${GITEA_REPO:-k3d-app-delivery-fabric}"
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "${_gitea_name}" \
+       && curl -sf "http://127.0.0.1:${_gitea_port}/api/v1/repos/${_gitea_user}/${_gitea_repo}" >/dev/null 2>&1; then
+      ARGOCD_REPO_URL="http://host.k3d.internal:${_gitea_port}/${_gitea_user}/${_gitea_repo}.git"
+      ARGOCD_SOURCE_ORIGIN="auto-detected Gitea container"
+    fi
+  fi
+
+  if [ -z "${ARGOCD_REPO_URL}" ]; then
+    ARGOCD_REPO_URL="$(git -C "${REPO_DIR}" remote get-url origin 2>/dev/null || true)"
+    [ -n "${ARGOCD_REPO_URL}" ] && ARGOCD_SOURCE_ORIGIN="git remote 'origin'"
+  fi
+
+  ARGOCD_TARGET_REVISION="${ARGOCD_TARGET_REVISION:-}"
+  if [ -z "${ARGOCD_TARGET_REVISION}" ]; then
+    ARGOCD_TARGET_REVISION="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  fi
+
+  export ARGOCD_REPO_URL ARGOCD_TARGET_REVISION ARGOCD_SOURCE_ORIGIN
+}
+
+# Classify a repo URL into a short, human label (Gitea / GitHub / other) so the
+# config view can say what auth, if any, is expected.
+argocd_source_kind() {
+  case "$1" in
+    http://host.k3d.internal:*|http://*:[0-9]*/*) echo "self-hosted Gitea (public HTTP, no auth needed)" ;;
+    https://github.com/*)                         echo "GitHub (needs ARGOCD_REPO_PASSWORD if the repo is private)" ;;
+    http://*|https://*)                           echo "other Git host" ;;
+    "")                                           echo "unresolved" ;;
+    *)                                            echo "other" ;;
+  esac
+}
+
 # ── Cluster helpers ───────────────────────────────────────────────────────────
 # Exit with a clear message if the cluster isn't reachable.
 require_cluster() {

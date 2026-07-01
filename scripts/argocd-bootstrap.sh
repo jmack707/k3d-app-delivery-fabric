@@ -13,38 +13,20 @@ require_cluster
 
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 
-# ── Resolve repo URL ──────────────────────────────────────────────────────────
+# ── Resolve repo URL + revision ───────────────────────────────────────────────
 # Priority: explicit ARGOCD_REPO_URL > a running self-hosted Gitea (public lab
 # repo) > the git 'origin' remote. Preferring Gitea over origin keeps the GitOps
 # source on the self-hosted, no-auth repo even if lab.env was recreated without
 # ARGOCD_REPO_URL — instead of silently falling back to a private GitHub remote.
-ARGOCD_REPO_URL="${ARGOCD_REPO_URL:-}"
-
-if [ -z "${ARGOCD_REPO_URL}" ]; then
-  _gitea_name="${GITEA_NAME:-k3d-app-delivery-fabric-gitea}"
-  _gitea_port="${GITEA_HTTP_PORT:-3000}"
-  _gitea_user="${GITEA_ADMIN_USER:-giteaadmin}"
-  _gitea_repo="${GITEA_REPO:-k3d-app-delivery-fabric}"
-  if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx "${_gitea_name}" \
-     && curl -sf "http://127.0.0.1:${_gitea_port}/api/v1/repos/${_gitea_user}/${_gitea_repo}" >/dev/null 2>&1; then
-    ARGOCD_REPO_URL="http://host.k3d.internal:${_gitea_port}/${_gitea_user}/${_gitea_repo}.git"
-    info "Using self-hosted Gitea as the Argo CD source (ARGOCD_REPO_URL unset)"
-  fi
-fi
-
-if [ -z "${ARGOCD_REPO_URL}" ]; then
-  ARGOCD_REPO_URL="$(git -C "${REPO_DIR}" remote get-url origin 2>/dev/null || true)"
+# Implemented in lib.sh so 'task config' reports the exact same resolution.
+resolve_argocd_source
+if [ "${ARGOCD_SOURCE_ORIGIN}" = "auto-detected Gitea container" ]; then
+  info "Using self-hosted Gitea as the Argo CD source (ARGOCD_REPO_URL unset)"
 fi
 if [ -z "${ARGOCD_REPO_URL}" ]; then
   err "Could not determine repo URL. Set ARGOCD_REPO_URL in lab.env."
   err "  e.g. ARGOCD_REPO_URL=https://github.com/<you>/k3d-app-delivery-fabric.git"
   exit 1
-fi
-
-# ── Resolve target revision ───────────────────────────────────────────────────
-ARGOCD_TARGET_REVISION="${ARGOCD_TARGET_REVISION:-}"
-if [ -z "${ARGOCD_TARGET_REVISION}" ]; then
-  ARGOCD_TARGET_REVISION="$(git -C "${REPO_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
 fi
 
 # ── Resolve exposure profile ──────────────────────────────────────────────────

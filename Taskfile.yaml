@@ -23,6 +23,11 @@ tasks:
     cmds:
       - bash scripts/check-prereqs.sh
 
+  config:
+    desc: "Show lab config + where Argo CD pulls GitOps from (lab.env vs resolved vs live)"
+    cmds:
+      - bash scripts/config-show.sh
+
   up:
     desc: "Full lab up: cluster → CNI → cert-manager → Argo CD → GitOps apps  (start registry first with: task registry:setup)"
     cmds:
