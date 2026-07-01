@@ -73,12 +73,37 @@ install_system_packages
 ok "System packages installed"
 
 # ── Docker ────────────────────────────────────────────────────────────────────
+# Debian/Ubuntu: the get.docker.com convenience script works as-is. RHEL-family:
+# do NOT use get.docker.com — on Rocky/AlmaLinux it selects Docker's
+# download.docker.com/linux/rocky repo, which currently ships no docker-ce
+# package (only ~15 plugin rpms), so the install dies with "Unable to find a
+# match: docker-ce". Docker's CentOS repo is the canonical, fully-populated one
+# and is API-compatible with the whole RHEL 9 family, so we add that instead.
+install_docker_apt() {
+  curl -fsSL https://get.docker.com | sh
+}
+
+install_docker_dnf() {
+  local mgr="${PKG_MGR}"   # dnf or yum
+  "${mgr}" install -y -q dnf-plugins-core 2>/dev/null || "${mgr}" install -y -q yum-utils
+  # config-manager is a plugin on dnf4 (Rocky 9); --add-repo writes the .repo file.
+  if command -v dnf &>/dev/null; then
+    dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  else
+    yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  fi
+  "${mgr}" install -y -q \
+    docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+}
+
 header "Docker"
 if command -v docker &>/dev/null; then
   ok "Docker already installed ($(docker --version))"
 else
-  info "Installing Docker CE via official script..."
-  curl -fsSL https://get.docker.com | sh
+  case "${PKG_MGR}" in
+    apt)     info "Installing Docker CE via official script..."; install_docker_apt ;;
+    dnf|yum) info "Installing Docker CE from Docker's CentOS repo (RHEL-compatible)..."; install_docker_dnf ;;
+  esac
   # Add the real user to the docker group so sudo isn't needed for docker commands
   usermod -aG docker "${REAL_USER}"
   # Enable and start the daemon
