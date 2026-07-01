@@ -63,8 +63,21 @@ installs everything:
 | Task | Taskfile automation |
 | jq, python3, apache2-utils, openssl, curl | Script dependencies |
 
-Run `task check` any time to verify tooling and that `lab.env` / `lab.secrets`
-exist.
+**Hardware.** The full stack is sizeable — crAPI alone runs ~10 services
+(Postgres, MongoDB, ChromaDB, and friends) on top of the platform (Cilium,
+cert-manager, Argo CD) plus the host-side registry and Gitea:
+
+| Resource | Minimum | Recommended | Notes |
+|---|---|---|---|
+| CPU | 4 vCPU | 8 vCPU | Below the minimum, crAPI's pods may never schedule. |
+| Memory | 8 GB | 16 GB | Below the minimum, expect OOM-kills / `Pending` pods. |
+| Free disk | 40 GB | 60 GB | Images + volumes live under `/var/lib/docker`. |
+
+`task cluster:only` (no apps) is far lighter — 2 vCPU / 4 GB is enough for pure
+network testing.
+
+Run `task check` any time to verify tooling **and host CPU/RAM/disk** against
+these numbers, and that `lab.env` / `lab.secrets` exist.
 
 ---
 

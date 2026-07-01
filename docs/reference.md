@@ -6,6 +6,24 @@ inventory. For narrative explanations see [architecture.md](architecture.md) and
 
 ---
 
+## Hardware requirements
+
+Sizing for the **full stack** (all apps + platform + host-side registry/Gitea).
+`task check` reports the host's CPU/RAM/free-disk against these and warns when a
+value is below the minimum (a warning, not a hard failure — the lab may still
+start, but pods can stay `Pending` or get OOM-killed).
+
+| Resource | Minimum | Recommended | Notes |
+|---|---|---|---|
+| CPU | 4 vCPU | 8 vCPU | crAPI schedules ~10 services; below the minimum they may not fit. |
+| Memory | 8 GB | 16 GB | Below the minimum, expect OOM-kills / `Pending` pods. |
+| Free disk | 40 GB | 60 GB | Measured on the filesystem backing `/var/lib/docker` (images + volumes). |
+
+Cluster-only runs (`task cluster:only`, no apps) are much lighter — 2 vCPU / 4 GB
+suffices for pure network / CNI testing.
+
+---
+
 ## `lab.env` variables
 
 `lab.env` holds **host/infra** settings only. Which apps deploy and how they're

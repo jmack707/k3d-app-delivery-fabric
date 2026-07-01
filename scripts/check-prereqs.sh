@@ -43,6 +43,51 @@ check_tool "envsubst"  "envsubst --version | head -1"
 check_tool "openssl"   "openssl version"
 
 echo ""
+echo "── Hardware ─────────────────────────────────────"
+# Minimums to bring the FULL stack up: crAPI alone is ~10 services (Postgres,
+# MongoDB, ChromaDB, identity, community, workshop, chatbot, web, gateway,
+# MailHog) on top of the platform (Cilium, cert-manager, Argo CD) plus the
+# host-side registry and Gitea. Below these the lab may still start, but pods
+# can stay Pending or get OOM-killed — hence warnings, not hard failures.
+MIN_CPU=4;    REC_CPU=8
+MIN_MEM_GB=8; REC_MEM_GB=16
+MIN_DISK_GB=40
+
+CPU_CORES=$(nproc 2>/dev/null || echo 0)
+if [ "${CPU_CORES}" -ge "${REC_CPU}" ]; then
+  ok "CPU  —  ${CPU_CORES} cores  (min ${MIN_CPU}, recommended ${REC_CPU})"
+  PASS=$((PASS + 1))
+elif [ "${CPU_CORES}" -ge "${MIN_CPU}" ]; then
+  warn "CPU  —  ${CPU_CORES} cores  (meets min ${MIN_CPU}, recommended ${REC_CPU})"
+  PASS=$((PASS + 1))
+else
+  warn "CPU  —  ${CPU_CORES} cores  (below minimum ${MIN_CPU}; crAPI may not schedule)"
+fi
+
+# MemTotal is in kB and reads a little under nominal RAM; +0.5 rounds to nearest GB.
+MEM_GB=$(awk '/^MemTotal:/ {printf "%d", ($2/1024/1024)+0.5}' /proc/meminfo 2>/dev/null || echo 0)
+if [ "${MEM_GB}" -ge "${REC_MEM_GB}" ]; then
+  ok "Memory  —  ${MEM_GB} GB  (min ${MIN_MEM_GB}, recommended ${REC_MEM_GB})"
+  PASS=$((PASS + 1))
+elif [ "${MEM_GB}" -ge "${MIN_MEM_GB}" ]; then
+  warn "Memory  —  ${MEM_GB} GB  (meets min ${MIN_MEM_GB}, recommended ${REC_MEM_GB})"
+  PASS=$((PASS + 1))
+else
+  warn "Memory  —  ${MEM_GB} GB  (below minimum ${MIN_MEM_GB} GB; expect OOM-kills)"
+fi
+
+# Free space on the filesystem backing Docker (images + volumes live here).
+DISK_TARGET=/var/lib/docker; [ -d "${DISK_TARGET}" ] || DISK_TARGET=/
+DISK_GB=$(df -Pk "${DISK_TARGET}" 2>/dev/null | awk 'NR==2 {printf "%d", $4/1024/1024}')
+DISK_GB=${DISK_GB:-0}
+if [ "${DISK_GB}" -ge "${MIN_DISK_GB}" ]; then
+  ok "Disk  —  ${DISK_GB} GB free on ${DISK_TARGET}  (min ${MIN_DISK_GB})"
+  PASS=$((PASS + 1))
+else
+  warn "Disk  —  ${DISK_GB} GB free on ${DISK_TARGET}  (below minimum ${MIN_DISK_GB} GB)"
+fi
+
+echo ""
 echo "── Docker daemon ────────────────────────────────"
 if docker info &>/dev/null; then
   ok "Docker daemon is running"
