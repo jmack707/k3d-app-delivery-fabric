@@ -8,6 +8,13 @@
 # Installs: Docker, kubectl, k3d, Helm, Helmfile, helm-diff, Task
 set -euo pipefail
 
+# Ensure /usr/local/bin is on PATH. We install kubectl, k3d, Helm, Helmfile and
+# Task there, but RHEL-family sudo uses a restrictive secure_path
+# (/sbin:/bin:/usr/sbin:/usr/bin) that omits it — so mid-run version checks and
+# k3d's own installer ("Is /usr/local/bin on your $PATH?") fail. Debian/Ubuntu
+# already include it; prepending is harmless there.
+export PATH="/usr/local/sbin:/usr/local/bin:${PATH}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 
@@ -165,12 +172,14 @@ fi
 
 # ── helm-diff plugin ──────────────────────────────────────────────────────────
 header "helm-diff plugin"
-# Must be installed as the real user — sudo helm plugin goes into root's directory
-if sudo -u "${REAL_USER}" helm plugin list 2>/dev/null | grep -q diff; then
+# Must be installed as the real user — sudo helm plugin goes into root's directory.
+# Pass PATH through env: `sudo -u` resets it to the restrictive secure_path, which
+# on RHEL omits /usr/local/bin where helm lives (else "helm: command not found").
+if sudo -u "${REAL_USER}" env "PATH=${PATH}" helm plugin list 2>/dev/null | grep -q diff; then
   ok "helm-diff already installed for ${REAL_USER}"
 else
   info "Installing helm-diff for ${REAL_USER}..."
-  sudo -u "${REAL_USER}" helm plugin install https://github.com/databus23/helm-diff
+  sudo -u "${REAL_USER}" env "PATH=${PATH}" helm plugin install https://github.com/databus23/helm-diff
   ok "helm-diff installed for ${REAL_USER}"
 fi
 
