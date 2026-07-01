@@ -53,22 +53,25 @@ fi
 install_system_packages() {
   case "${PKG_MGR}" in
     apt)
-      # apache2-utils → htpasswd; gettext-base → envsubst
+      # apache2-utils → htpasswd; gettext-base → envsubst; bash-completion
+      # provides _get_comp_words_by_ref, which the kubectl completion needs.
       apt-get update -qq
       apt-get install -y -qq \
         curl wget git jq python3 apache2-utils gettext-base openssl \
         apt-transport-https ca-certificates gnupg lsb-release \
-        iptables net-tools
+        bash-completion iptables net-tools
       ;;
     dnf|yum)
       # RHEL-family equivalents: httpd-tools → htpasswd; gettext → envsubst.
-      # apt-transport-https / lsb-release have no dnf counterpart and aren't
-      # needed here (the tool installers below fetch straight from HTTPS URLs).
+      # bash-completion is NOT installed on a minimal Rocky/RHEL, but the kubectl
+      # completion added to ~/.bashrc calls _get_comp_words_by_ref from it — so
+      # without it every Tab errors. apt-transport-https / lsb-release have no dnf
+      # counterpart and aren't needed (the tool installers fetch from HTTPS URLs).
       # curl is omitted deliberately: RHEL/Rocky 9 ship curl-minimal, and asking
       # dnf for 'curl' triggers a package conflict — the base curl is enough.
       "${PKG_MGR}" install -y -q \
         wget git jq python3 httpd-tools gettext openssl \
-        ca-certificates gnupg2 \
+        ca-certificates gnupg2 bash-completion \
         iptables net-tools
       ;;
   esac
