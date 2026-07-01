@@ -14,7 +14,7 @@ tasks:
       - task --list
 
   install:
-    desc: "Install all prerequisites on Ubuntu 22.04/24.04 (requires sudo)"
+    desc: "Install all prerequisites on Debian/Ubuntu or RHEL-family (requires sudo; run scripts/install-prereqs.sh directly the first time — Task is installed by it)"
     cmds:
       - sudo bash scripts/install-prereqs.sh
 

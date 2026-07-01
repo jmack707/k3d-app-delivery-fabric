@@ -51,8 +51,10 @@ makes the cluster match. Full detail in
 
 ## Prerequisites
 
-Ubuntu 22.04 / 24.04. `sudo bash scripts/install-prereqs.sh` (or `task install`)
-installs everything:
+Debian/Ubuntu (apt) or the RHEL family — Rocky, AlmaLinux, RHEL, CentOS Stream,
+Fedora (dnf/yum). `sudo bash scripts/install-prereqs.sh` installs everything.
+`task` itself is one of the things it installs, so run the script directly the
+first time (`task install` only works once `task` is on your PATH):
 
 | Tool | Purpose |
 |---|---|
@@ -72,7 +74,8 @@ exist.
 
 ```bash
 # 1. Install prerequisites (once; log out/in afterwards for the docker group)
-task install
+#    Run the script directly — `task` is installed *by* this step.
+sudo bash scripts/install-prereqs.sh
 
 # 2. Configure — set LAB_HOST_IP (your VM's IP) at minimum
 cp lab.env.example lab.env

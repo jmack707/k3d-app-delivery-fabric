@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # scripts/install-prereqs.sh
-# Install all prerequisites for k3d-app-delivery-fabric on Ubuntu 22.04 / 24.04.
-# Run once with sudo: sudo bash scripts/install-prereqs.sh
+# Install all prerequisites for k3d-app-delivery-fabric.
+# Supports Debian/Ubuntu (apt) and RHEL-family (Rocky, AlmaLinux, RHEL, CentOS
+# Stream, Fedora — dnf/yum). Run once with sudo:
+#   sudo bash scripts/install-prereqs.sh
 #
 # Installs: Docker, kubectl, k3d, Helm, Helmfile, helm-diff, Task
 set -euo pipefail
@@ -21,12 +23,53 @@ fi
 
 header() { echo ""; echo "━━━  $*  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; }
 
+# ── Distro / package-manager detection ────────────────────────────────────────
+# Pick the package manager from /etc/os-release. Debian/Ubuntu use apt; the
+# RHEL family (Rocky, AlmaLinux, RHEL, CentOS Stream, Fedora) uses dnf (or yum on
+# older releases). PKG_MGR drives which install path the System-packages step
+# takes below.
+PKG_MGR=""
+if command -v apt-get &>/dev/null; then
+  PKG_MGR="apt"
+elif command -v dnf &>/dev/null; then
+  PKG_MGR="dnf"
+elif command -v yum &>/dev/null; then
+  PKG_MGR="yum"
+fi
+
+if [ -z "${PKG_MGR}" ]; then
+  err "No supported package manager found (need apt-get, dnf, or yum)."
+  err "Supported: Debian/Ubuntu and RHEL-family (Rocky, AlmaLinux, RHEL, Fedora)."
+  exit 1
+fi
+
+install_system_packages() {
+  case "${PKG_MGR}" in
+    apt)
+      # apache2-utils → htpasswd; gettext-base → envsubst
+      apt-get update -qq
+      apt-get install -y -qq \
+        curl wget git jq python3 apache2-utils gettext-base openssl \
+        apt-transport-https ca-certificates gnupg lsb-release \
+        iptables net-tools
+      ;;
+    dnf|yum)
+      # RHEL-family equivalents: httpd-tools → htpasswd; gettext → envsubst.
+      # apt-transport-https / lsb-release have no dnf counterpart and aren't
+      # needed here (the tool installers below fetch straight from HTTPS URLs).
+      # curl is omitted deliberately: RHEL/Rocky 9 ship curl-minimal, and asking
+      # dnf for 'curl' triggers a package conflict — the base curl is enough.
+      "${PKG_MGR}" install -y -q \
+        wget git jq python3 httpd-tools gettext openssl \
+        ca-certificates gnupg2 \
+        iptables net-tools
+      ;;
+  esac
+}
+
 header "System packages"
-apt-get update -qq
-apt-get install -y -qq \
-  curl wget git jq python3 apache2-utils \
-  apt-transport-https ca-certificates gnupg lsb-release \
-  iptables net-tools
+info "Package manager: ${PKG_MGR}"
+install_system_packages
 ok "System packages installed"
 
 # ── Docker ────────────────────────────────────────────────────────────────────

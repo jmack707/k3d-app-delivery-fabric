@@ -21,7 +21,7 @@ ARGOCD_HTTPS_NODEPORT="${ARGOCD_HTTPS_NODEPORT:-30091}"
 ARGOCD_ADMIN_PASSWORD="${ARGOCD_ADMIN_PASSWORD:-}"   # plaintext, from lab.secrets
 
 # Produce a bcrypt hash of $1 for the chart's argocdServerAdminPassword value.
-# Prefers htpasswd (apache2-utils); falls back to python3-bcrypt.
+# Prefers htpasswd (apache2-utils / httpd-tools); falls back to python3-bcrypt.
 argocd_bcrypt() {
   local pw="$1" hash=""
   if command -v htpasswd &>/dev/null; then
@@ -48,7 +48,7 @@ if [ -n "${ARGOCD_ADMIN_PASSWORD}" ]; then
   info "Setting admin password from lab.secrets (ARGOCD_ADMIN_PASSWORD)..."
   BCRYPT_HASH="$(argocd_bcrypt "${ARGOCD_ADMIN_PASSWORD}")"
   if [ -z "${BCRYPT_HASH}" ]; then
-    err "Could not generate a bcrypt hash. Install apache2-utils (htpasswd)"
+    err "Could not generate a bcrypt hash. Install htpasswd (apache2-utils / httpd-tools)"
     err "or the python3 'bcrypt' module, then re-run."
     exit 1
   fi
